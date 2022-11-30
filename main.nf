@@ -302,7 +302,7 @@ process COMPUTE_DEPTH {
 	path merged_bam
 	
 	output:
-	path "*.txt"
+	tuple path("*.txt"), val(accession)
 	
 	script:
 	accession = merged_bam.getSimpleName()
@@ -360,27 +360,15 @@ process FILTER_DEPTH_CHIMERAS {
 	script:
 	accession = merged_bam.getSimpleName()
 	"""
-	#!/usr/bin/env python3
-	
-	import subprocess
-	
-	main_cmd = 'filter_depth_chimera.py'
-	
-	required_arg_list = ['--depth_input_path={0}'.format(${depth_stats}),
-						 '--merged_bam_path={0}'.format(${merged_bam}),
-						 '--filtered_allele_list_outpath={0}'.format("${accession}.allele_list.tsv"),
-						 '--filtered_merged_bam_outpath={0}'.format("${accession}.filtered.merged.bam")]
-	default_arg_dict = {'--edge_distance_threshold': '0',
-						'--depth_threshold': '10',
-						"--maximum_start_position_gap": '45',
-						'--minimum_bridge_read_length': '70'}
-	
-	run_cmd = create_cmd_req_list_optional_dict(main_cmd=main_cmd,
-		required_arg_list=required_arg_list,
-		default_arg_dict=default_arg_dict,
-		optional_arg_dict={},
-		delimiter='=')
-	subprocess.call(run_cmd,shell=True)
+	filter_depth_chimeras.py \
+	--depth_input_path=${depth_stats} \
+    --merged_bam_path=${merged_bam} \
+	--filtered_allele_list_outpath="${accession}.allele_list.tsv" \
+	--filtered_merged_bam_outpath=="${accession}.filtered.merged.bam" \
+	--edge_distance_threshold=${params.edge_distance_threshold}', \
+	--depth_threshold=${params.depth_threshold} \
+	--maximum_start_position_gap=${params.maximum_start_position_gap} \
+	--minimum_bridge_read_length=${params.minimum_bridge_read_length} \
 	"""
 }
 
