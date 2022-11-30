@@ -64,9 +64,13 @@ workflow {
 		MERGE_BAM.out
 	)
 	
-	CREATE_ALLELE_LIST_FULL_LENGTH ( )
+	CREATE_ALLELE_LIST_FULL_LENGTH ( 
+		FILTER_DEPTH_CHIMERAS.out.allele_list
+	)
 	
-	GENOTYPE ( )
+	GENOTYPE ( 
+		FILTER_DEPTH_CHIMERAS.out.allele_list
+	)
 	
 }
 // --------------------------------------------------------------- //
@@ -81,6 +85,8 @@ params.exhaustive_mapping_output = params.results + "/02-exhaustive-map"
 params.converted = params.results + "/03-converted_to_bam"
 params.merged_bams = params.results + "/04-merged"
 params.depth_stats = params.results + "/05-depth"
+params.allele_lists = params.results + "/06-allele_lists"
+params.genotypes = params.results + "/07-full_length_genotypes"
 // --------------------------------------------------------------- //
 
 
@@ -118,7 +124,7 @@ process BAIT_MHC {
 	
 	script:
 	"""
-	java -ea -Xmx${task.memory}m -Xms{0}m -cp ${params.bbmap_cp} align2.BBMap build=1 \
+	java -ea -Xmx${task.memory}m -Xms${task.memory}m -cp ${params.bbmap_cp} align2.BBMap build=1 \
 	in=${reads1} in2=${reads2} ref=${params.bait_fasta} outm=${accession}.fastq.gz \
 	semiperfectmode=t threads=${task.cpus} nodisk=t
 	
@@ -225,7 +231,7 @@ process CONVERT_BAM {
 	val accession, emit: accessions
 	
 	when:
-	ref_allele.getSimpleName() == sam.getSimpleName().split("-[1]
+	ref_allele.getSimpleName() == sam.getSimpleName().split("-")[1]
 	
 	script:
 	mapping = sam.getSimpleName()
@@ -260,12 +266,13 @@ process MERGE_BAM {
 	"""
 	for i in `cat !{accession_list}`;
 	do
-		find . -name '${i}*.bam' > bam_list.txt
+		find . -name '${i}*.bam' > ${i}_bam_list.txt
 		mkdir -p ${i}_bam_split/
 		split -l 200 ${i}_bam_list.txt ${i}_bam_split/bam_segment
 		find ${i}_bam_split/ -name 'bam_segment*' > ${i}_split_files.txt
-		for f in `cat ${i}_split_files.txt`; do \
-			samtools merge \${f}.bam -b \${f} && samtools index \${f}.bam; \
+		for f in `cat ${i}_split_files.txt`;
+		do
+			samtools merge ${f}.bam -b ${f} && samtools index ${f}.bam
 		done
 		
 		find ${i}_bam_split/ -name '*.bam' > ${i}_merged_bam_files.txt
@@ -344,15 +351,13 @@ process FILTER_DEPTH_CHIMERAS {
 	publishDir params.depth_stats, mode: 'copy', pattern: '*.allele_list.tsv'
 	publishDir params.merged_bams, mode: 'copy', pattern: '*.filtered.merged.bam'
 	
-	cpus 1
-	
 	input:
 	each path(depth_stats)
 	each path(merged_bam)
 	
 	output:
-	path "*.allele_list.tsv"
-	tuple path("*.filtered.merged.bam"), val(accession)
+	path "*.allele_list.tsv", emit: allele_list
+	tuple path("*.filtered.merged.bam"), val(accession), emit: filtered_bam
 	
 	when:
 	depth_stats.getSimpleName() == merged_bam.getSimpleName()
@@ -362,10 +367,10 @@ process FILTER_DEPTH_CHIMERAS {
 	"""
 	filter_depth_chimeras.py \
 	--depth_input_path=${depth_stats} \
-    --merged_bam_path=${merged_bam} \
+	--merged_bam_path=${merged_bam} \
 	--filtered_allele_list_outpath="${accession}.allele_list.tsv" \
 	--filtered_merged_bam_outpath=="${accession}.filtered.merged.bam" \
-	--edge_distance_threshold=${params.edge_distance_threshold}', \
+	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--depth_threshold=${params.depth_threshold} \
 	--maximum_start_position_gap=${params.maximum_start_position_gap} \
 	--minimum_bridge_read_length=${params.minimum_bridge_read_length} \
@@ -380,63 +385,27 @@ process CREATE_ALLELE_LIST_FULL_LENGTH {
 	// suppress output stderr and stdout because it consumes a lot of unnecessary space
 	
 	tag "${tag}"
-	publishDir params.results, mode: 'copy'
+	publishDir params.allele_lists, mode: 'copy'
 	
 	cpus 1
 	
 	input:
-	
+	path allele_list
 	
 	output:
-	
+	path "*.allele_list_fl.txt"
+	path "*.allele_list_fl_num.txt"
 	
 	when:
 	params.use_avrl_amplicons == true
 	
 	script:
 	"""
-	#!/usr/bin/env python3
-	
-	import pandas as pd
-	import json
-	import os
-	import shutil
-	from pathlib import Path
-
-
-	# with open("${params.ipd_avrl_dict") as f_in:
-	with open("${params.ipd_avrl_dict") as f_in:
-		ipd_diag_dict = json.load(f_in)
-	with open("${params.ipd_avrl_dict") as f_in:
-		ipd_num_dict = json.load(f_in)
-
-	sample = ${accession}
-	# open the list of missing alleles do to no corresponding diag region to the fl.
-	df_missing = pd.read_csv("${params.missing_alleles}",sep='\t',header=None,names=['allele'])
-	missing_allele_list = list(df_missing['allele'].unique())
-	# ipd_num_dict
-	included = False
-	# open the list of alleles that past the depth/computational chimera filter
-	df = pd.read_csv("${accession}.allele_list.tsv"",sep='\t')
-	# get a list of the unique alleles
-	diag_present_list = list(df['allele'].unique())
-	ipd_allele_list = []
-	# convert the list to the corresponding fl sequences, as many of them multi-map.
-	for diag_i in diag_present_list:
-		if diag_i in ipd_diag_dict.keys():
-			ipd_allele_list = ipd_allele_list + ipd_diag_dict[diag_i]
-
-   #  os.makedirs(exhaustive_result,exist_ok=True)
-	# add on the missing allele list
-	ipd_allele_list = ipd_allele_list + missing_allele_list
-	# write teh two lists of alleles and corresponding number list for the fasta files.
-	with open("${accession}.allele_list_fl.txt",'w') as f:
-		f.write('\n'.join(ipd_allele_list))
-	ipd_num_list = [ipd_num_dict[x] for x in ipd_allele_list]
-	with open("${accession}.allele_list_fl_num.txt",'w') as f:
-		f.write('\n'.join(ipd_num_list))
-
-	touch ${accession}_finished.txt
+	create_allele_list_full_length.py \
+	${params.ipd_avrl_dict} \
+	${ipd_num_lookup} \
+	${allele_list} \
+	${params.missing_alleles}
 	"""
 }
 
@@ -448,12 +417,10 @@ process GENOTYPE {
 	tag "${tag}"
 	publishDir params.results, mode: 'copy'
 	
-	memory 1.GB
 	cpus 1
-	time '10minutes'
 	
 	input:
-	
+	path allele_list
 	
 	output:
 	path "*.genotypes.csv"
@@ -463,41 +430,7 @@ process GENOTYPE {
 	
 	script:
 	"""
-	#!/usr/bin/env python3
-	
-	import os
-	import shutil
-	from pathlib import Path
-	
-	genotype = "${accession}.genotypes.csv"
-	allele_diag_list = "${accesion}.avrl_allele_list.tsv"
-	allele_fl_list = "${accesion}.allele_list.tsv"
-	with open(${params.ipd_avrl_dict}) as f_in:
-		ipd_diag_dict = json.load(f_in)
-	import pandas as pd
-	df_diag = pd.read_csv(allele_diag_list, sep='\t')
-	df =pd.read_csv(allele_fl_list, sep='\t')
-	diag_allele_list = list(df_diag['allele'].unique())
-	ipd_allele_list = list(df['allele'].unique())
-	missing_diag_list = []
-	for diag_i in diag_allele_list:
-		should_present_allele_list = ipd_diag_dict[diag_i]
-		at_least_one_allele = any(item in should_present_allele_list for item in ipd_allele_list)
-		if not at_least_one_allele:
-			missing_diag_list.append(diag_i)
-	df.rename(columns={'depth':'read_ct'}, inplace=True)
-	df['read_ct'] = df['read_ct'].round(decimals=0)
-	df['accession'] = ${accession}
-	if len(missing_diag_list) > 0 :
-		df_diag_missing = pd.DataFrame({'allele':missing_diag_list})
-		df_diag_missing = df_diag.merge(df_diag_missing, on=['allele'], how='inner')
-		df_diag_missing.rename(columns={'depth':'read_ct'}, inplace=True)
-		df_diag_missing['read_ct'] = df_diag_missing['read_ct'].round(decimals=0)
-		df_diag_missing['read_ct'] = df_diag_missing['read_ct'] - .01
-		df_diag_missing['accession'] = ${accession}
-		df = pd.concat([df, df_diag_missing], ignore_index=True)
-	df.to_csv(genotype, index=False)
-	
+	genotype.py ${accession} ${params.ipd_avrl_dict}
 	"""
 }
 
