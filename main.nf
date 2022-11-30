@@ -109,8 +109,8 @@ process BAIT_MHC {
 	publishDir params.baiting_output, mode: 'copy', pattern: '*.fastq.gz'
 	publishDir params.baiting_output, mode: 'copy', pattern: '*read_count.txt'
 	
-	// memory
-	// cpus 
+	errorStrategy 'retry'
+	maxRetries 4
 	
 	input:
 	tuple val(accession), path(reads1), path(reads2)
@@ -145,8 +145,9 @@ process EXHAUSTIVE_MAPPING {
 	tag "${accession}-${allele}"
 	// publishDir params.exhaustive_mapping_output
 
-	// memory 1.GB
-	cpus 1
+	cpus { 1 * task.attempt }
+	errorStrategy 'retry'
+	maxRetries 4
 	
 	input:
 	each path(baited_fastq)
@@ -159,7 +160,8 @@ process EXHAUSTIVE_MAPPING {
 	allele = ref_allele.getSimpleName()
 	accession = baited_fastq.getSimpleName()
 	"""
-	java -ea -Xmx${task.memory}m -Xms${task.memory}m -cp ${params.bbmap_cp} align2.BBMap build=1 \
+	java -ea -Xmx${task.memory}m -Xms${task.memory}m \
+	-cp ${params.bbmap_cp} align2.BBMap build=1 \
 	in=${baited_fastq} ref=${ref_allele} outm=${accession}-${allele}.sam \
 	semiperfectmode=t threads=${task.memory} int=t nodisk=t >/dev/null=None 2>&1=None
 	"""
@@ -393,7 +395,7 @@ process CREATE_ALLELE_LIST_FULL_LENGTH {
 	path allele_list
 	
 	output:
-	path "*.allele_list_fl.txt"
+	path "*.allele_list_fl.txt", emit: fl_list
 	path "*.allele_list_fl_num.txt"
 	
 	when:
