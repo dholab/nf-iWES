@@ -42,6 +42,9 @@ workflow {
 	
 	MERGE_BAM ( 
 		CONVERT_BAM.out.bams.collect()
+		CONVERT_BAM.out.accessions
+			.unique()
+			.collectFile(name: 'accessions.txt', newLine: true)
 	)
 	
 	SAVE_REF_WITH_BAM ( 
@@ -49,7 +52,7 @@ workflow {
 	)
 	
 	COMPUTE_DEPTH ( 
-		MERGE_BAM.out
+		MERGE_BAM.out.merged_bam
 	)
 	
 	COMPRESS_DEPTH ( 
@@ -108,35 +111,20 @@ process BAIT_MHC {
 	
 	output:
 	path "*.fastq.gz", emit: baited_fastq
-	path("*.read_count.txt")
+	path "*.read_count.txt" 
 	
 	when:
 	params.use_avrl_amplicons == true
 	
 	script:
 	"""
-	#!/usr/bin/env python3
+	java -ea -Xmx${task.memory}m -Xms{0}m -cp ${params.bbmap_cp} align2.BBMap build=1 \
+	in=${reads1} in2=${reads2} ref=${params.bait_fasta} outm=${accession}.fastq.gz \
+	semiperfectmode=t threads=${task.cpus} nodisk=t
 	
-	import subprocess
+	zcat ${accession}.fastq.gz | echo $((`wc -l`/4)) > ${accession}.read_count.txt
 	
-	main_cmd = 'java -ea -Xmx{0}m -Xms{0}m -cp {1} align2.BBMap build=1'.format(${task.memory}, params.bbmap_cp)
-	
-	required_arg_list = ['in={0}'.format(${reads1}),
-						 'in2={0}'.format(${reads2}),
-						 'ref={0}'.format(${params.bait_fasta}),
-						 'outm={0}'.format(${accession}.fastq.gz)]
-	default_arg_dict = {'semiperfectmode': 't',
-						'threads': ${task.cpus},
-						'nodisk':'t'}
-	
-	run_cmd = create_cmd_req_list_optional_dict(main_cmd=main_cmd,
-		required_arg_list=required_arg_list,
-		default_arg_dict=default_arg_dict,
-		optional_arg_dict=params.optional_arg_dict,
-		delimiter='=')
-	subprocess.call(run_cmd,shell=True)
-	shell("zcat ${accession}.fastq.gz | echo $((`wc -l`/4)) > ${accession}.read_count.txt")
-	shell("touch ${accession}.read_count.txt")
+	touch ${accession}.read_count.txt
 	"""
 }
 
@@ -165,25 +153,9 @@ process EXHAUSTIVE_MAPPING {
 	allele = ref_allele.getSimpleName()
 	accession = baited_fastq.getSimpleName()
 	"""
-	#!/usr/bin/env python3
-	
-	main_cmd = 'java -ea -Xmx{0}m -Xms{0}m -cp {1} align2.BBMap build=1'.format(${task.memory}, ${params.bbmap_cp})
-	
-	required_arg_list = ['in={0}'.format(${baited_fastq}),
-						 'ref={0}'.format(${ref_allele}),
-						 'outm={0}'.format(${accession}-${allele}.sam)]
-	default_arg_dict = {'semiperfectmode': 't',
-						'threads': str(threads),
-						'int': 't',
-						'nodisk': 't',
-						'>/dev/null': None,
-						'2>&1': None}
-	
-	run_cmd = create_cmd_req_list_optional_dict(main_cmd=main_cmd,
-		required_arg_list=required_arg_list,
-		default_arg_dict=default_arg_dict,
-		delimiter='=')
-	subprocess.call(run_cmd,shell=True)
+	java -ea -Xmx${task.memory}m -Xms${task.memory}m -cp ${params.bbmap_cp} align2.BBMap build=1 \
+	in=${baited_fastq} ref=${ref_allele} outm=${accession}-${allele}.sam \
+	semiperfectmode=t threads=${task.memory} int=t nodisk=t >/dev/null=None 2>&1=None
 	"""
 }
 
@@ -250,12 +222,14 @@ process CONVERT_BAM {
 	output:
 	path "*.bam", emit: bams
 	path "*.bam.bai", emit: bam_indices
+	val accession, emit: accessions
 	
 	when:
-	ref_allele.getSimpleName() == sam.getSimpleName().split("-")[1]
+	ref_allele.getSimpleName() == sam.getSimpleName().split("-[1]
 	
 	script:
 	mapping = sam.getSimpleName()
+	accession = sam.getSimpleName().split("-")[0]
 	allele = sam.getSimpleName().split("-")[1]
 	"""
 	samtools view -b -h -T {input.indv_fasta} -o ${mapping}.bam ${sam} \
@@ -276,31 +250,28 @@ process MERGE_BAM {
 	
 	input:
 	path bam_list
+	path accession_list
 	
 	output:
-	path "*.merged.bam"
+	tuple path("*.merged.bam"), emit: merged_bam
+	path "*.bam.bai", emit: merged_index
 	
-	script:
+	shell:
 	"""
-	#!/usr/bin/env python3
-	
-	import os
-	merged_bam = os.path.join(${params.results},'04_merged_bam_files.txt')
-	split_files = os.path.join(${params.results},'04_split_files.txt')
-	converted_dir = os.path.join(${params.results},'04-converted')
-	filelist = os.path.join(${params.results},'04_filelist.txt')
-	bam_split_dir = os.path.join(${params.results},'04_bam_split')
-	bam_segment = os.path.join(bam_split_dir,'bam_segment')
-	shell("find {converted_dir}  -name '*.bam' > {filelist}")
-	shell("mkdir -p {bam_split_dir}")
-	shell("split -l 200 {filelist} {bam_segment}")
-	shell("find {bam_split_dir} -name 'bam_segment*' > {split_files}")
-	shell("for f in `cat {split_files}`; do \
-	samtools merge ${{f}}.bam -b ${{f}} && samtools index ${{f}}.bam; \
-	done")
-	shell("find {bam_split_dir} -name '*.bam' > {merged_bam}")
-	shell("samtools merge {output.out_bam} -b {merged_bam} && samtools index {output.out_bam}")
-	shell("rm -rf {bam_split_dir}")
+	for i in `cat !{accession_list}`;
+	do
+		find . -name '${i}*.bam' > bam_list.txt
+		mkdir -p ${i}_bam_split/
+		split -l 200 ${i}_bam_list.txt ${i}_bam_split/bam_segment
+		find ${i}_bam_split/ -name 'bam_segment*' > ${i}_split_files.txt
+		for f in `cat ${i}_split_files.txt`; do \
+			samtools merge \${f}.bam -b \${f} && samtools index \${f}.bam; \
+		done
+		
+		find ${i}_bam_split/ -name '*.bam' > ${i}_merged_bam_files.txt
+		samtools merge ${i}.merged.bam -b ${i}_merged_bam_files.txt && samtools index ${i}.merged.bam
+		rm -rf ${i}_bam_split/
+	done
 	"""
 }
 
@@ -331,7 +302,7 @@ process COMPUTE_DEPTH {
 	path merged_bam
 	
 	output:
-	tuple path("*.txt"), val(accession)
+	path "*.txt"
 	
 	script:
 	accession = merged_bam.getSimpleName()
@@ -477,7 +448,7 @@ process CREATE_ALLELE_LIST_FULL_LENGTH {
 	with open("${accession}.allele_list_fl_num.txt",'w') as f:
 		f.write('\n'.join(ipd_num_list))
 
-	shell("touch ${accession}_finished.txt")
+	touch ${accession}_finished.txt
 	"""
 }
 
