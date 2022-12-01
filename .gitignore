@@ -10,3 +10,5 @@ timeline.html*
 report.html*
 *.dot
 *.png.*
+._*
+resources/ipd*.fasta

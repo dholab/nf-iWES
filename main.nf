@@ -17,7 +17,9 @@ workflow {
 		.fromPath ( '${params.avrl_amplicon_path}/*.fasta' )
 	
 	
-	// Workflow steps 
+	// Workflow steps
+	PULL_IPD_REF ( )
+	
 	BAIT_MHC ( 
 		ch_reads
 	)
@@ -94,6 +96,25 @@ params.genotypes = params.results + "/07-full_length_genotypes"
 
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
+
+process PULL_IPD_REF {
+	
+	publishDir params.resources, mode: 'copy'
+	
+	output:
+	path "ipd*mafa*.fasta", emit: mafa_ref
+	path "ipd*mamu*.fasta", emit: mamu_ref
+	
+	script:
+	"""
+	# Mamu reference:
+	curl -fsSL https://raw.githubusercontent.com/dholab/IPD-ref-generator/main/results/iwes_databases/ipd-mhc-mamu-2022-09-19_cleaned.immunowes.fasta > ipd-mhc-mamu-2022-09-19_cleaned.immunowes.fasta
+	
+	# Mafa reference:
+	curl -fsSL https://raw.githubusercontent.com/dholab/IPD-ref-generator/main/results/iwes_databases/ipd-mhc-mafa-2022-09-19_cleaned.immunowes.fasta > ipd-mhc-mafa-2022-09-19_cleaned.immunowes.fasta
+	"""
+	
+}
 
 process BAIT_MHC {
 	
@@ -293,7 +314,7 @@ process SAVE_REF_WITH_BAM {
 	
 	script:
 	"""
-	cp ${params.full_ref_fasta} ${params.converted}
+	cp ${params.avrl_amplicon_fasta} ${params.converted}
 	"""
 }
 
