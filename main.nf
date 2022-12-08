@@ -19,6 +19,8 @@ workflow {
 	
 	// Workflow steps
 	PULL_IPD_REF ( )
+
+	PULL_AVRL_REF ( )
 	
 	BAIT_MHC ( 
 		ch_reads
@@ -102,8 +104,8 @@ process PULL_IPD_REF {
 	publishDir params.resources, mode: 'copy'
 	
 	output:
-	path "ipd*mafa*.fasta", emit: mafa_ref
-	path "ipd*mamu*.fasta", emit: mamu_ref
+	path "ipd*mafa*.fasta", emit: mafa_ipd
+	path "ipd*mamu*.fasta", emit: mamu_ipd
 	
 	script:
 	"""
@@ -112,6 +114,25 @@ process PULL_IPD_REF {
 	
 	# Mafa reference:
 	curl -fsSL https://raw.githubusercontent.com/dholab/IPD-ref-generator/main/results/iwes_databases/ipd-mhc-mafa-2022-09-19_cleaned.immunowes.fasta > ipd-mhc-mafa-2022-09-19_cleaned.immunowes.fasta
+	"""
+	
+}
+
+process PULL_AVRL_REF {
+	
+	publishDir params.resources, mode: 'copy'
+	
+	output:
+	path "ipd*mafa*.fasta", emit: mafa_avrl
+	path "ipd*mamu*.fasta", emit: mamu_avrl
+	
+	script:
+	"""
+	# Mamu reference:
+	curl -fsSL https://raw.githubusercontent.com/nrminor/IPD-ref-generator/main/results/miseq_databases/ipd-mhc-mamu-2022-09-19_cleaned.miseq.trimmed.deduplicated.sorted.renamed.fasta > ipd-mhc-mamu-2022-09-19_avrl_amplicons.fasta
+	
+	# Mafa reference:
+	curl -fsSL https://raw.githubusercontent.com/nrminor/IPD-ref-generator/main/results/miseq_databases/ipd-mhc-mafa-2022-09-19_cleaned.miseq.trimmed.deduplicated.sorted.renamed.fasta > ipd-mhc-mafa-2022-09-19_avrl_amplicons.fasta
 	"""
 	
 }
