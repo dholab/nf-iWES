@@ -1,6 +1,7 @@
 .nextflow/
 work/
 .nova/
+deprecated/
 
 .nextflow.log*
 .DS_Store
