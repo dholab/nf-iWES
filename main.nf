@@ -17,9 +17,13 @@ workflow {
 	// Workflow steps 
 	SEMIPERFECT_ALIGN ( )
 	
-	GENOTYPE ( )
+	GENOTYPE ( 
+		SEMIPERFECT_ALIGN.out.collect()
+	)
 	
-	CREATE_PIVOT_TABLE ( )
+	CREATE_PIVOT_TABLE ( 
+		GENOTYPE.out
+	)
 	
 	
 }
@@ -34,7 +38,7 @@ if( params.bam_dir.isEmpty() ){
 	params.bam_dir = params.results + "/" + "01-" + params.run_name + "-alignments"
 }
 params.genotypes = params.results + "/" + "02-" + params.run_name + "-genotypes"
-params.pivot_tables = params.results + "/" + "02-" + params.run_name + "-pivot_table"
+params.pivot_tables = params.results + "/" + "03-" + params.run_name + "-pivot_table"
 
 // --------------------------------------------------------------- //
 
@@ -48,14 +52,14 @@ process SEMIPERFECT_ALIGN {
 	
 	// This process does something described here
 	
-	// tag "${tag}"
+	tag "${accession}"
 	publishDir params.bam_dir, mode: 'copy'
 	
 	memory params.ram
 	cpus 4
 	
 	input:
-	tuple path(reads1), path(reads2)
+	tuple val(accession), path(reads1), path(reads2)
 	
 	output:
 	path "*.bam"
@@ -81,6 +85,9 @@ process GENOTYPE {
 	
 	// tag "${tag}"
 	publishDir params.genotypes, mode: 'copy'
+	
+	input:
+	path bam_list
 	
 	output:
 	path "*"
@@ -110,22 +117,18 @@ process CREATE_PIVOT_TABLE {
 	time '10minutes'
 	
 	input:
-	path ""
+	path ".xlsx"
 	
 	output:
-	
-	
-	when:
-	
+	path ".xlsx"
 	
 	script:
 	"""
 	create_pivot_table.py \
 	--project_name=${params.run_name} \
 	--out_dir=./ \
-	--config_dir=/Users/dabaker3/github/iwes_genotyping_v2/config/Mamu \
-	--animal_lookup_path=/Users/dabaker3/github/iwes_genotyping_v2/config/Mamu/baylor_32_animal_lookup.csv
-
+	--config_dir=${params.resources} \
+	--animal_lookup_path=${params.resources}/baylor_32_animal_lookup.csv
 	"""
 }
 
