@@ -79,9 +79,6 @@ process CREATE_REF_MATRIX {
 	output:
 	val "cue", emit: cue
 	
-	when:
-	!file('${params.config_dir}/${params.animal)_ref_matrix').exists()
-	
 	script:
 	ref_matrix_dir = file('${params.config_dir}/${params.animal)_ref_matrix')
 	if( !ref_matrix_dir.exists() )
@@ -110,9 +107,6 @@ process SEMIPERFECT_ALIGN {
 	
 	output:
 	path "*.bam"
-	
-	when:
-	params.bam_dir.isEmpty()
 	
 	script:
 	"""
