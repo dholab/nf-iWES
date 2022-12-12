@@ -33,6 +33,7 @@ workflow {
 	)
 	
 	GENOTYPE_MAMU ( 
+		CREATE_REF_MATRIX.out.cue,
 		SEMIPERFECT_ALIGN.out
 			.mix ( ch_alignments )
 			.collect()
@@ -133,6 +134,7 @@ process GENOTYPE_MAMU {
 	publishDir params.genotypes, mode: 'copy'
 	
 	input:
+	each val(cue)
 	path bam_list
 	
 	output:
@@ -165,6 +167,7 @@ process GENOTYPE_MAFA {
 	publishDir params.genotypes, mode: 'copy'
 	
 	input:
+	each val(cue)
 	path bam_list
 	
 	output:
