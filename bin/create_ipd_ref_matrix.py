@@ -52,7 +52,7 @@ ipd_ref_matrix_dir = args.ipd_ref_matrix_dir
 bait_fasta = args.bait_fasta
 config_dir = args.config_dir
 if (config_dir is None) and ((bait_fasta is None) or (ipd_ref_matrix_dir is None)):
-    print("A config_dir or  bait_fast and ipd_ref_matrix_dir must be declared")
+    print("A config_dir or bait_fast and ipd_ref_matrix_dir must be declared")
     exit()
 if ipd_ref_matrix_dir is None:
     ipd_ref_matrix_dir = os.path.join(config_dir, 'ipd_ref_matrix')

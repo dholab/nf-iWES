@@ -7,15 +7,28 @@ nextflow.enable.dsl = 2
 // WORKFLOW SPECIFICATION
 // --------------------------------------------------------------- //
 workflow {
-	
+
+	// Disclaimer
+	println "NOTE:"
+	println "THIS WORKFLOW CURRENTLY ONLY SUPPORTS RHESUS MACAQUE DATA"
 	
 	// input channels
 	ch_reads = Channel
 		.fromFilePairs ( '${params.data_dir}/*_R{1,2}_001.fastq.gz', flat: true )
 	
+	ch_samples = Channel
+		.fromPath( params.samplesheet )
+		.splitCsv( )
+		.map { row -> tuple( row.accession, row.animal, File(row.reads1), File(row.reads2) )  }
+	
 	
 	// Workflow steps 
-	SEMIPERFECT_ALIGN ( )
+	CREATE_REF_MATRIX ( )
+	
+	SEMIPERFECT_ALIGN ( 
+		CREATE_REF_MATRIX.out.cue,
+		ch_reads
+	)
 	
 	GENOTYPE ( 
 		SEMIPERFECT_ALIGN.out.collect()
@@ -48,6 +61,27 @@ params.pivot_tables = params.results + "/" + "03-" + params.run_name + "-pivot_t
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
+process CREATE_REF_MATRIX {
+	
+	// This process does something described here
+	
+	output:
+	val "cue", emit: cue
+	
+	when:
+	!file('${params.resources}/${params.animal)_ref_matrix').exists()
+	
+	script:
+	ref_matrix_dir = file('${params.resources}/${params.animal)_ref_matrix')
+	if( !ref_matrix_dir.exists() )
+		ref_matrix_dir.mkdir()
+	"""
+	create_ipd_ref_matrix.py \
+	--config_dir=${params.resources} \
+	--ipd_ref_matrix_dir=${ref_matrix_dir}
+	"""
+}
+
 process SEMIPERFECT_ALIGN {
 	
 	// This process does something described here
@@ -59,6 +93,7 @@ process SEMIPERFECT_ALIGN {
 	cpus 4
 	
 	input:
+	each val(cue)
 	tuple val(accession), path(reads1), path(reads2)
 	
 	output:
