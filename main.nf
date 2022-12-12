@@ -14,13 +14,15 @@ workflow {
 	
 	// input channels
 	ch_reads = Channel
-		.fromFilePairs ( '${params.data_dir}/*_R{1,2}_001.fastq.gz', flat: true )
+		.fromFilePairs ( '${params.fastq_dir}/*_R{1,2}_001.fastq.gz', flat: true )
 	
 	// ch_samples = Channel
 	// 	.fromPath( params.samplesheet )
 	// 	.splitCsv( )
 	// 	.map { row -> tuple( row.accession, row.animal, File(row.reads1), File(row.reads2) )  }
 	
+	ch_alignments = Channel
+		.fromPath ( "${params.bam_dir}/*.bam" )
 	
 	// Workflow steps 
 	CREATE_REF_MATRIX ( )
@@ -31,7 +33,9 @@ workflow {
 	)
 	
 	GENOTYPE_MAMU ( 
-		SEMIPERFECT_ALIGN.out.collect()
+		SEMIPERFECT_ALIGN.out
+			.mix ( ch_alignments )
+			.collect()
 	)
 
 	// GENOTYPE_MAFA ( 
