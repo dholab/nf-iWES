@@ -106,7 +106,7 @@ if ipd_ref_matrix_dir is None:
     ipd_ref_matrix_dir = os.path.join(config_dir, 'ipd_ref_matrix')
 
 
-os.makedirs(out_dir, exist_ok=True)
+# os.makedirs(out_dir, exist_ok=True)
 
 
 
