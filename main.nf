@@ -52,7 +52,7 @@ workflow {
 // --------------------------------------------------------------- //
 // Additional parameters that are derived from parameters set in nextflow.config
 params.config_dir = params.resources + "/" + params.animal
-params.mamu_bait_fasta = params.config_dir + "/" + "bait.fasta"
+params.bait_fasta = params.config_dir + "/" + "bait.fasta"
 params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
 params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.csv"
 params.ipd_avrl_dict = params.config_dir + "/" + "ipd_to_diag_lookup.json"
@@ -88,7 +88,7 @@ process CREATE_REF_MATRIX {
 		ref_matrix_dir.mkdir()
 	"""
 	create_ipd_ref_matrix.py \
-	--bait_fasta=${params.mamu_bait_fasta} \
+	--bait_fasta=${params.bait_fasta} \
 	--config_dir=${params.config_dir} \
 	--ipd_ref_matrix_dir=${ref_matrix_dir}
 	"""
@@ -120,7 +120,7 @@ process SEMIPERFECT_ALIGN {
 	--cp_dir=/Users/dabaker3/anaconda3/bin/bbmap/current \
 	--fastq_dir=. \
 	--bam_dir=. \
-	--bait_fasta=${params.mamu_bait_fasta} \
+	--bait_fasta=${params.bait_fasta} \
 	--config_dir=${params.config_dir} \
 	--threads=${task.cpus} \
 	--ram=${task.memory}
@@ -151,7 +151,7 @@ process GENOTYPE_MAMU {
 	--bam_dir=. \
 	--config_dir=${params.config_dir} \
 	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
-	--bait_fasta=${params.mamu_bait_fasta} \
+	--bait_fasta=${params.bait_fasta} \
 	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
 	--depth_threshold=${params.depth_threshold} \
@@ -183,7 +183,7 @@ process GENOTYPE_MAFA {
 	--bam_dir=. \
 	--config_dir=${params.config_dir} \
 	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
-	--bait_fasta=${params.mamu_bait_fasta} \
+	--bait_fasta=${params.bait_fasta} \
 	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
 	--depth_threshold=${params.depth_threshold} \
@@ -210,7 +210,7 @@ process CREATE_PIVOT_TABLE {
 	--project_name=${params.run_name} \
 	--out_dir=./ \
 	--config_dir=${params.config_dir} \
-	--bait_fasta=${params.mamu_bait_fasta}
+	--bait_fasta=${params.bait_fasta}
 	--animal_lookup_path=${params.run_animal_lookup} \
 	--haplotype_lookup=${params.haplotype_lookup} \
 	--diag_to_ipd_json=${params.ipd_avrl_dict}
