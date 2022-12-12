@@ -79,7 +79,7 @@ fastq_filelist = [os.path.join(fastq_dir, x) for x in fastq_filelist if
                   x.endswith('R1_001.fastq.gz') and not x.startswith('._')]
 fastq2_filelist = [x.replace('_R1_', '_R2_') for x in fastq_filelist]
 sample_list = [os.path.basename(x).split('_')[0] for x in fastq_filelist]
-
+os.makedirs(bam_dir, exist_ok=True)
 for in_1, in_2, sample_i in zip(fastq_filelist, fastq2_filelist, sample_list):
     print(in_1)
     if os.path.exists(os.path.join(bam_dir, '{0}.bam'.format(sample_i))):
@@ -95,4 +95,4 @@ for in_1, in_2, sample_i in zip(fastq_filelist, fastq2_filelist, sample_list):
     outm={5}/{6}.bam \
     semiperfectmode=t \
     threads={7} \
-    nodisk=t'.format(ram, cp_dir, in_1, in_2, bait_fasta, bam_dir, sample_i, int(threads)))
+    nodisk=f'.format(int(ram), cp_dir, in_1, in_2, bait_fasta, bam_dir, sample_i, int(threads)))

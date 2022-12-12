@@ -105,13 +105,9 @@ if bait_fasta is None:
 if ipd_ref_matrix_dir is None:
     ipd_ref_matrix_dir = os.path.join(config_dir, 'ipd_ref_matrix')
 
-
-# os.makedirs(out_dir, exist_ok=True)
-
-
+os.makedirs(out_dir, exist_ok=True)
 
 k = 0
-
 
 
 def depth_screening(df, depth_threshold, edge_distance_threshold, ipd_length_dict):
@@ -595,6 +591,69 @@ def annotate_depth_miseq(x, y):
     return '{0}.99{1}'.format(int(x), ambig)
 
 
+def short_sequence_analysis(df_ss2, sample, suffix):
+    df_ss = df_ss2.copy()
+    allele_s_list = list(df_ss['ALLELE'].unique())
+    df_ss['SAMPLE_NUM'] = sample
+
+    df_ss = filter_count_map_bam(df_ss, allele_s_list)
+    print(df_ss)
+
+    df_depth_ss = get_depth(df_ss,
+                            ipd_length_dict,
+                            fillzero=True)
+    print('Finished {0} depth 1 of 3: {1}'.format(suffix, sample))
+    allele_s_list = depth_screening(df_depth_ss,
+                                    depth_threshold=2,
+                                    edge_distance_threshold=-1,
+                                    ipd_length_dict=ipd_length_dict)
+    df_ss = filter_count_map_bam(df_ss, allele_s_list)
+    df_depth_ss = get_depth(df_ss, ipd_length_dict, fillzero=True)
+    print('Finished {0} depth 2 of 3: {1}'.format(suffix, sample))
+    allele_s_list = depth_screening(df_depth_ss,
+                                    depth_threshold=2,
+                                    edge_distance_threshold=-1,
+                                    ipd_length_dict=ipd_length_dict)
+    df_ss = filter_count_map_bam(df_ss, allele_s_list)
+
+    df_ss_2 = df_ss2[df_ss2['ALLELE'].isin(allele_s_list)][
+        ['NAME', 'ALLELE_2', 'START_2', 'END_2', 'REVERSED_MAPPING', 'ALLELE']]
+    df_ss_2.rename(columns={'ALLELE': 'ALLELE_3'}, inplace=True)
+
+    df_ss_m = df_ss.merge(df_ss_2, on=['NAME', 'ALLELE_2', 'START_2', 'END_2', 'REVERSED_MAPPING'])
+    df_ss_m.drop(columns=['ALLELE_2', 'START_2', 'END_2'], inplace=True)
+    df_ss_m.rename(columns={'ALLELE_3': 'ALLELE_2'}, inplace=True)
+    df_ss_m = filter_count_map_bam(df_ss_m, allele_s_list)
+    os.makedirs(os.path.join(out_dir, 'expanded_maps_{0}'.format(suffix)), exist_ok=True)
+    df_ss_m.to_csv(os.path.join(out_dir,
+                                'expanded_maps_{0}'.format(suffix),
+                                '{0}_expanded_maps_{1}.csv'.format(sample, suffix)),
+                   index=False)
+    df_depth_ss = get_depth(df_ss, ipd_length_dict, fillzero=True)
+    os.makedirs(os.path.join(out_dir, 'depth_{0}'.format(suffix)), exist_ok=True)
+    df_depth_ss.to_csv(os.path.join(out_dir,
+                                    'depth_{0}'.format(suffix),
+                                    '{0}_depth_{1}.csv'.format(sample, suffix)),
+                       index=False)
+    print('Finished {0}  depth 3 of 3: {1}'.format(suffix, sample))
+    df_median_ss = get_normalized_median_by_allele_sample(df_depth_ss, median_groups=[])
+    os.makedirs(os.path.join(out_dir, 'normalized_median_{0}'.format(suffix)), exist_ok=True)
+    df_median_ss.to_csv(os.path.join(out_dir,
+                                     'normalized_median_{0}'.format(suffix),
+                                     '{0}_norm_median_{1}.csv'.format(sample, suffix)),
+                        index=False)
+    df_median_ss['SAMPLE_MEDIAN'] = df_median_ss.groupby('SAMPLE_NUM')['DEPTH_ADJ'].transform('median')
+    df_median_ss['DEPTH_NORM'] = df_median_ss['DEPTH_ADJ'] / df_median_ss['SAMPLE_MEDIAN']
+    df_median_ss['DEPTH_NORM'] = df_median_ss['DEPTH_NORM'].round(3)
+    df_median_ss.drop(columns='SAMPLE_MEDIAN', inplace=True)
+    df_median_ss['DEPTH_ADJ'] = [annotate_depth_miseq(x, y) for x, y in zip(df_median_ss['DEPTH_ADJ'],
+                                                                    df_median_ss[
+                                                                        'unique_maps_per_allele'])]
+    df_median_ss['DEPTH_ADJ'] = df_median_ss['DEPTH_ADJ'].astype(float)
+    print('--- {0} complete {1} ---'.format(suffix, sample))
+    return df_median_ss, df_depth_ss, df_ss_m
+
+
 ipd_matrix_df_list = []
 # def pair_reads_from_bam(out_dir, num_i, ipd_length_dict, unpaired_edge_threshold=500):
 
@@ -615,7 +674,8 @@ file_count = len(ipd_matrix_list)
 bam_filelist = os.listdir(bam_dir)
 bam_filelist = [os.path.join(bam_dir, x) for x in bam_filelist if x.endswith('.bam') and not x.startswith('._')]
 
-df_norm_median_miseq = pd.DataFrame()
+df_median_exon = pd.DataFrame()
+df_median_miseq = pd.DataFrame()
 df_norm_median = pd.DataFrame()
 df_read_ct = pd.DataFrame()
 df_gap_summary = pd.DataFrame()
@@ -653,8 +713,9 @@ for bam_file_i in bam_filelist:
 
     df_all['PAIRED'] = df_all.groupby(['NAME', 'ALLELE'])['REVERSED_MAPPING'].transform('count')
     df_all[['START', 'END', 'START_2', 'END_2']] = df_all[['START', 'END', 'START_2', 'END_2']].astype(int)
-    df_miseq2 = df_all[df_all['ALLELE'].str.endswith('-diag')]
-    df_ipd = df_all[~df_all['ALLELE'].str.endswith('-diag')]
+    df_miseq = df_all[df_all['ALLELE'].str.endswith('-miseq')]
+    df_ipd = df_all[df_all['ALLELE'].str.endswith('-gen')]
+    df_exon = df_all[df_all['ALLELE'].str.endswith('-exon')]
     df_bam = process_df_bam(df_bam=df_ipd,
                             ipd_length_dict=ipd_length_dict,
                             sample_i=sample_i,
@@ -700,7 +761,8 @@ for bam_file_i in bam_filelist:
     df_bam_m.drop(columns=['ALLELE_2', 'START_2', 'END_2'], inplace=True)
     df_bam_m.rename(columns={'ALLELE_3': 'ALLELE_2'}, inplace=True)
     os.makedirs(os.path.join(out_dir, 'expanded_maps_ipd'), exist_ok=True)
-    df_bam_m.to_csv(os.path.join(out_dir, 'expanded_maps_ipd', '{0}_expanded_maps_ipd.csv'.format(sample_i)), index=False)
+    df_bam_m.to_csv(os.path.join(out_dir, 'expanded_maps_ipd', '{0}_expanded_maps_ipd.csv'.format(sample_i)),
+                    index=False)
     df_depth = get_depth(df_bam_m, ipd_length_dict, fillzero=True)
     print('Finished ipd depth 4 of 4: {0}'.format(sample_i))
     os.makedirs(os.path.join(out_dir, 'depth_ipd'), exist_ok=True)
@@ -710,59 +772,40 @@ for bam_file_i in bam_filelist:
     df_norm_median_i = df_norm_median_i.merge(df_gap_summary_i, on=['ALLELE',
                                                                     'SAMPLE_NUM'], how='inner')
     os.makedirs(os.path.join(out_dir, 'normalized_median_ipd'), exist_ok=True)
-    df_norm_median_i.to_csv(os.path.join(out_dir, 'normalized_median_ipd', '{0}_norm_median.csv'.format(sample_i)), index=False)
+    df_norm_median_i.to_csv(os.path.join(out_dir, 'normalized_median_ipd', '{0}_norm_median.csv'.format(sample_i)),
+                            index=False)
     # print(allele_list)
     print('--- IPD complete {0} ---'.format(sample_i))
+    df_median_miseq_i, df_depth_miseq, df_miseq_m = short_sequence_analysis(df_ss2=df_miseq,
+                                                                            sample=sample_i,
+                                                                            suffix='miseq')
 
-    df_miseq = df_miseq2.copy()
-    allele_list = list(df_miseq['ALLELE'].unique())
-    df_miseq['SAMPLE_NUM'] = sample_i
-    # df_depth_miseq = get_depth_miseq(df_miseq, ipd_length_dict, sample_i)
-    df_miseq = filter_count_map_bam(df_miseq, allele_list)
-    df_depth_miseq = get_depth(df_miseq, ipd_length_dict, fillzero=True)
-    print('Finished miseq depth 1 of 3: {0}'.format(sample_i))
-    allele_list = depth_screening(df_depth_miseq, depth_threshold=2, edge_distance_threshold=-1,
-                                  ipd_length_dict=ipd_length_dict)
-    df_miseq = filter_count_map_bam(df_miseq, allele_list)
-    df_depth_miseq = get_depth(df_miseq, ipd_length_dict, fillzero=True)
-    print('Finished miseq  depth 2 of 3: {0}'.format(sample_i))
-    allele_list = depth_screening(df_depth_miseq, depth_threshold=2, edge_distance_threshold=-1,
-                                  ipd_length_dict=ipd_length_dict)
-    df_miseq = filter_count_map_bam(df_miseq, allele_list)
-
-    df_miseq_2 = df_miseq2[df_miseq2['ALLELE'].isin(allele_list)][
-        ['NAME', 'ALLELE_2', 'START_2', 'END_2', 'REVERSED_MAPPING', 'ALLELE']]
-    df_miseq_2.rename(columns={'ALLELE': 'ALLELE_3'}, inplace=True)
-
-    df_miseq_m = df_miseq.merge(df_miseq_2, on=['NAME', 'ALLELE_2', 'START_2', 'END_2', 'REVERSED_MAPPING'])
-    df_miseq_m.drop(columns=['ALLELE_2', 'START_2', 'END_2'], inplace=True)
-    df_miseq_m.rename(columns={'ALLELE_3': 'ALLELE_2'}, inplace=True)
-    df_miseq_m = filter_count_map_bam(df_miseq_m, allele_list)
-    os.makedirs(os.path.join(out_dir, 'expanded_maps_miseq'), exist_ok=True)
-    df_miseq_m.to_csv(os.path.join(out_dir, 'expanded_maps_miseq', '{0}_expanded_maps_miseq.csv'.format(sample_i)), index=False)
-    df_depth_miseq = get_depth(df_miseq, ipd_length_dict, fillzero=True)
-    os.makedirs(os.path.join(out_dir, 'depth_miseq'), exist_ok=True)
-    df_depth_miseq.to_csv(os.path.join(out_dir, 'depth_miseq', '{0}_depth_miseq.csv'.format(sample_i)), index=False)
-    print('Finished miseq  depth 3 of 3: {0}'.format(sample_i))
-    df_norm_median_miseq_i = get_normalized_median_by_allele_sample(df_depth_miseq, median_groups=[])
-    os.makedirs(os.path.join(out_dir, 'normalized_median_miseq'), exist_ok=True)
-    df_norm_median_miseq_i.to_csv(os.path.join(out_dir, 'normalized_median_miseq', '{0}_norm_median_miseq.csv'.format(sample_i)), index=False)
-    # print(allele_list)
-    print('--- Miseq complete {0} ---'.format(sample_i))
+    df_median_exon_i, df_depth_exon, df_exon_m = short_sequence_analysis(df_ss2=df_exon,
+                                                                         sample=sample_i,
+                                                                         suffix='exon')
 
     df_read_ct_i = pd.DataFrame({'sample_read_ct': [segment_count], 'gs_id': [sample_i]})
-    df_norm_median = pd.concat([df_norm_median, df_norm_median_i], ignore_index=True)
-    df_norm_median_miseq = pd.concat([df_norm_median_miseq, df_norm_median_miseq_i], ignore_index=True)
     df_read_ct = pd.concat([df_read_ct, df_read_ct_i], ignore_index=True)
+
+    df_norm_median = pd.concat([df_norm_median, df_norm_median_i], ignore_index=True)
+    df_median_miseq = pd.concat([df_median_miseq, df_median_miseq_i], ignore_index=True)
+    df_median_exon = pd.concat([df_median_exon, df_median_exon_i], ignore_index=True)
+
     print('--- start make filtered and expanded bam files ---')
     df_bam_in = bam_to_df_2(bam_file_i)
     os.makedirs(os.path.join(out_dir, 'miseq_bam'), exist_ok=True)
     os.makedirs(os.path.join(out_dir, 'ipd_bam'), exist_ok=True)
+    os.makedirs(os.path.join(out_dir, 'exon_bam'), exist_ok=True)
     # miseq db
     makebam(df_bam_in=df_bam_in,
             df_mapped=df_miseq_m,
             ipd_length_dict=ipd_length_dict,
             out_sam=os.path.join(out_dir, 'miseq_bam', '{0}_miseq.sam'.format(sample_i)))
+    # exon db
+    makebam(df_bam_in=df_bam_in,
+            df_mapped=df_exon_m,
+            ipd_length_dict=ipd_length_dict,
+            out_sam=os.path.join(out_dir, 'exon_bam', '{0}_exon.sam'.format(sample_i)))
     # ipd db
     makebam(df_bam_in=df_bam_in,
             df_mapped=df_bam_m,
@@ -771,24 +814,16 @@ for bam_file_i in bam_filelist:
     print('--- SAMPLE complete {0} ---'.format(sample_i))
     print(time.time() - t2)
     t2 = time.time()
-
-df_norm_median_miseq['SAMPLE_MEDIAN'] = df_norm_median_miseq.groupby('SAMPLE_NUM')['DEPTH_ADJ'].transform('median')
-df_norm_median_miseq['DEPTH_NORM'] = df_norm_median_miseq['DEPTH_ADJ'] / df_norm_median_miseq['SAMPLE_MEDIAN']
-df_norm_median_miseq['DEPTH_NORM'] = df_norm_median_miseq['DEPTH_NORM'].round(3)
-df_norm_median_miseq.drop(columns='SAMPLE_MEDIAN', inplace=True)
+    break
 
 df_norm_median['DEPTH_ADJ'] = [annotate_depth(x, y, z) for x, y, z in zip(df_norm_median['DEPTH_ADJ'],
                                                                           df_norm_median['unique_maps_per_allele'],
                                                                           df_norm_median['DEPTH_NORM'])]
 
-df_norm_median_miseq['DEPTH_ADJ'] = [annotate_depth_miseq(x,
-                                                          y) for x, y in zip(df_norm_median_miseq['DEPTH_ADJ'],
-                                                                             df_norm_median_miseq[
-                                                                                 'unique_maps_per_allele'])]
-df_norm_median_miseq['DEPTH_ADJ'] = df_norm_median_miseq['DEPTH_ADJ'].astype(float)
 df_norm_median['DEPTH_ADJ'] = df_norm_median['DEPTH_ADJ'].astype(float)
-df_norm_median.to_csv(os.path.join(out_dir, '{0}_norm_median.csv'.format(project_name)), index=False)
-df_norm_median_miseq.to_csv(os.path.join(out_dir, '{0}_norm_median_miseq.csv'.format(project_name)), index=False)
+df_norm_median.to_csv(os.path.join(out_dir, '{0}_norm_median_gen.csv'.format(project_name)), index=False)
+df_median_miseq.to_csv(os.path.join(out_dir, '{0}_norm_median_miseq.csv'.format(project_name)), index=False)
+df_median_exon.to_csv(os.path.join(out_dir, '{0}_norm_median_exon.csv'.format(project_name)), index=False)
 df_read_ct.to_csv(os.path.join(out_dir, '{0}_read_ct.csv'.format(project_name)), index=False)
 df_gap_summary.to_csv(os.path.join(out_dir, '{0}_gaps.csv'.format(project_name)), index=False)
 print(out_dir)

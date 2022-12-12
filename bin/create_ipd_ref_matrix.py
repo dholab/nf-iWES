@@ -189,15 +189,17 @@ def compare_shorter(df_exp_compare, df_exp):
     return df_short_seq_len
 
 
-def compare_full(df_exp_compare, df_exp, out_dir, file_count=10):
+def compare_full(df_exp_c, df_e, out_dir, file_count=10):
     # shoten the columns to save space and change type from float to int
-    df_exp_compare_full = df_exp_compare[['ALLELE_2', 'SEQ_LIST_2', 'START_2', 'END_2']]
+    df_exp_compare_full = df_exp_c[['ALLELE_2', 'SEQ_LIST_2', 'START_2', 'END_2']]
     df_exp_compare_full.rename(columns={'SEQ_LIST_2': 'SEQ_LIST'}, inplace=True)
-    df_exp_compare_full['START_2', 'END_2'] = df_exp_compare_full['START_2', 'END_2'].astype(int)
-
-    df_exp_full = df_exp[['ALLELE', 'SEQ_LIST', 'START', 'END']]
-    df_exp_full['START', 'END'] = df_exp_full['START', 'END'].astype(int)
-
+    print(df_exp_compare_full)
+    print(df_exp_compare_full.columns)
+    df_exp_compare_full['START_2'] = df_exp_compare_full['START_2'].astype(int)
+    df_exp_compare_full['END_2'] = df_exp_compare_full['END_2'].astype(int)
+    df_exp_full = df_e[['ALLELE', 'SEQ_LIST', 'START', 'END']]
+    df_exp_full['START'] = df_exp_full['START'].astype(int)
+    df_exp_full['END'] = df_exp_full['END'].astype(int)
     for idx, chunk in enumerate(np.array_split(df_exp_compare_full, file_count)):
         print(idx, file_count)
         df_exp_full_merge = df_exp_full.merge(chunk, on=['SEQ_LIST'], how='inner')
@@ -240,7 +242,7 @@ df_exp = df_exp.reset_index()
 print('create a copy of the fasta converted and expanded dataframe to compare')
 df_exp_compare = df_exp.copy()
 # make a dataframe that we will join to later for comparisons
-# df_exp_compare = df_exp[['index','allele','SEQ_LIST','START','END','LEN','REF_SEQ_LEN']]
+
 df_exp_compare.rename(columns={'index': 'index_2',
                                'ALLELE': 'ALLELE_2',
                                'REF_SEQ_LEN': 'REF_SEQ_LEN_2',
@@ -248,7 +250,7 @@ df_exp_compare.rename(columns={'index': 'index_2',
                                'START': 'START_2',
                                'END': 'END_2',
                                'LEN': 'LEN_2'}, inplace=True)
-# df_exp_compare = df_exp_compare.reset_index().rename(columns={'index':'index_2'})
+
 df_exp.rename(columns={'index': 'index_1'}, inplace=True)
 
 print('create a start based semi compared matrix')
@@ -267,6 +269,7 @@ print('export dataframe to gzip')
 df_ipd_matrix.drop_duplicates(inplace=True)
 df_ipd_matrix.to_csv(os.path.join(ipd_ref_matrix_dir, 'ipd_short_matrix.csv.gz'), index=False, compression='gzip')
 print('create compare full lengths and export to files .gz')
+print(df_exp_compare)
 compare_full(df_exp_compare, df_exp, ipd_ref_matrix_dir, file_count=10)
 print('collecting excess variables')
 del df
