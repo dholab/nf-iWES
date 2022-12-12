@@ -51,6 +51,13 @@ workflow {
 // DERIVATIVE PARAMETER SPECIFICATION
 // --------------------------------------------------------------- //
 // Additional parameters that are derived from parameters set in nextflow.config
+params.config_dir = params.resources + "/" + params.animal
+params.mamu_bait_fasta = params.config_dir + "/" + "bait.fasta"
+params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
+params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.csv"
+params.ipd_avrl_dict = params.config_dir + "/" + "ipd_to_diag_lookup.json"
+params.ipd_num_lookup = params.config_dir + "/" + "ipd_num_lookup.json"
+
 if( params.bam_dir.isEmpty() ){
 	params.bam_dir = params.results + "/" + "01-" + params.run_name + "-alignments"
 }
@@ -73,16 +80,16 @@ process CREATE_REF_MATRIX {
 	val "cue", emit: cue
 	
 	when:
-	!file('${params.resources}/${params.animal)_ref_matrix').exists()
+	!file('${params.config_dir}/${params.animal)_ref_matrix').exists()
 	
 	script:
-	ref_matrix_dir = file('${params.resources}/${params.animal)_ref_matrix')
+	ref_matrix_dir = file('${params.config_dir}/${params.animal)_ref_matrix')
 	if( !ref_matrix_dir.exists() )
 		ref_matrix_dir.mkdir()
 	"""
 	create_ipd_ref_matrix.py \
 	--bait_fasta=${params.mamu_bait_fasta} \
-	--config_dir=${params.resources} \
+	--config_dir=${params.config_dir} \
 	--ipd_ref_matrix_dir=${ref_matrix_dir}
 	"""
 }
@@ -114,7 +121,7 @@ process SEMIPERFECT_ALIGN {
 	--fastq_dir=. \
 	--bam_dir=. \
 	--bait_fasta=${params.mamu_bait_fasta} \
-	--config_dir=${params.resources} \
+	--config_dir=${params.config_dir} \
 	--threads=${task.cpus} \
 	--ram=${task.memory}
 	"""
@@ -142,8 +149,8 @@ process GENOTYPE_MAMU {
 	--project_name=${params.run_name} \
 	--out_dir=. \
 	--bam_dir=. \
-	--config_dir=${params.resources} \
-	--ipd_ref_matrix_dir='${params.resources}/${params.animal}_ref_matrix' \
+	--config_dir=${params.config_dir} \
+	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--bait_fasta=${params.mamu_bait_fasta} \
 	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
@@ -174,8 +181,8 @@ process GENOTYPE_MAFA {
 	--project_name=${params.run_name} \
 	--out_dir=. \
 	--bam_dir=. \
-	--config_dir=${params.resources} \
-	--ipd_ref_matrix_dir='${params.resources}/${params.animal}_ref_matrix' \
+	--config_dir=${params.config_dir} \
+	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--bait_fasta=${params.mamu_bait_fasta} \
 	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
@@ -202,7 +209,7 @@ process CREATE_PIVOT_TABLE {
 	create_pivot_table.py \
 	--project_name=${params.run_name} \
 	--out_dir=./ \
-	--config_dir=${params.resources} \
+	--config_dir=${params.config_dir} \
 	--bait_fasta=${params.mamu_bait_fasta}
 	--animal_lookup_path=${params.run_animal_lookup} \
 	--haplotype_lookup=${params.haplotype_lookup} \
