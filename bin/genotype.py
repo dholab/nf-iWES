@@ -36,7 +36,6 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         type=str,
                         help='where the config files are stored',
                         required=True)
-
     parser.add_argument('--bait_fasta',
                         type=str,
                         help='Where you ipd-diag combined fasta exists',
@@ -47,7 +46,6 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         help='directory where the ipd reference matrix files exist',
                         default=None,
                         required=False)
-
     parser.add_argument('--unpaired_edge_threshold',
                         type=str,
                         help='unpaired_edge_threshold how far (bp) from the edge of reference sequence \

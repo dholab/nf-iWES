@@ -16,10 +16,10 @@ workflow {
 	ch_reads = Channel
 		.fromFilePairs ( '${params.data_dir}/*_R{1,2}_001.fastq.gz', flat: true )
 	
-	ch_samples = Channel
-		.fromPath( params.samplesheet )
-		.splitCsv( )
-		.map { row -> tuple( row.accession, row.animal, File(row.reads1), File(row.reads2) )  }
+	// ch_samples = Channel
+	// 	.fromPath( params.samplesheet )
+	// 	.splitCsv( )
+	// 	.map { row -> tuple( row.accession, row.animal, File(row.reads1), File(row.reads2) )  }
 	
 	
 	// Workflow steps 
@@ -30,9 +30,13 @@ workflow {
 		ch_reads
 	)
 	
-	GENOTYPE ( 
+	GENOTYPE_MAMU ( 
 		SEMIPERFECT_ALIGN.out.collect()
 	)
+
+	// GENOTYPE_MAFA ( 
+	// 	SEMIPERFECT_ALIGN.out.collect()
+	// )
 	
 	CREATE_PIVOT_TABLE ( 
 		GENOTYPE.out
@@ -77,6 +81,7 @@ process CREATE_REF_MATRIX {
 		ref_matrix_dir.mkdir()
 	"""
 	create_ipd_ref_matrix.py \
+	--bait_fasta=${params.mamu_bait_fasta} \
 	--config_dir=${params.resources} \
 	--ipd_ref_matrix_dir=${ref_matrix_dir}
 	"""
@@ -108,35 +113,74 @@ process SEMIPERFECT_ALIGN {
 	--cp_dir=/Users/dabaker3/anaconda3/bin/bbmap/current \
 	--fastq_dir=. \
 	--bam_dir=. \
+	--bait_fasta=${params.mamu_bait_fasta} \
 	--config_dir=${params.resources} \
 	--threads=${task.cpus} \
 	--ram=${task.memory}
 	"""
 }
 
-process GENOTYPE {
+process GENOTYPE_MAMU {
 	
 	// This process does something described here
 	
-	// tag "${tag}"
+	tag "${params.animal}"
 	publishDir params.genotypes, mode: 'copy'
 	
 	input:
 	path bam_list
 	
 	output:
-	path "*"
-	
+	tuple path("*.csv"), val(params.animal)
+
 	when:
-	!params.bam_dir.isEmpty()
+	params.animal.toLowerCase() == "mamu"
 	
 	script:
 	"""
 	genotype.py \
 	--project_name=${params.run_name} \
 	--out_dir=. \
+	--bam_dir=. \
 	--config_dir=${params.resources} \
-	--bam_dir=.
+	--ipd_ref_matrix_dir='${params.resources}/${params.animal}_ref_matrix' \
+	--bait_fasta=${params.mamu_bait_fasta} \
+	--edge_distance_threshold=${params.edge_distance_threshold} \
+	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
+	--depth_threshold=${params.depth_threshold} \
+	--low_ram_mode=${params.genotype_in_low_ram_mode}
+	"""
+}
+
+process GENOTYPE_MAFA {
+	
+	// This process does something described here
+	
+	tag "${params.animal}"
+	publishDir params.genotypes, mode: 'copy'
+	
+	input:
+	path bam_list
+	
+	output:
+	tuple path("*.csv"), val(params.animal)
+
+	when:
+	params.animal.toLowerCase() == "mafa"
+	
+	script:
+	"""
+	genotype.py \
+	--project_name=${params.run_name} \
+	--out_dir=. \
+	--bam_dir=. \
+	--config_dir=${params.resources} \
+	--ipd_ref_matrix_dir='${params.resources}/${params.animal}_ref_matrix' \
+	--bait_fasta=${params.mamu_bait_fasta} \
+	--edge_distance_threshold=${params.edge_distance_threshold} \
+	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
+	--depth_threshold=${params.depth_threshold} \
+	--low_ram_mode=${params.genotype_in_low_ram_mode}
 	"""
 }
 
@@ -144,15 +188,11 @@ process CREATE_PIVOT_TABLE {
 	
 	// This process does something described here
 	
-	// tag "${tag}"
+	tag "${params.animal}"
 	publishDir params.results, mode: 'copy'
 	
-	memory 1.GB
-	cpus 1
-	time '10minutes'
-	
 	input:
-	path ".xlsx"
+	tuple path(csv_files), val(animal)
 	
 	output:
 	path ".xlsx"
@@ -163,7 +203,10 @@ process CREATE_PIVOT_TABLE {
 	--project_name=${params.run_name} \
 	--out_dir=./ \
 	--config_dir=${params.resources} \
-	--animal_lookup_path=${params.resources}/baylor_32_animal_lookup.csv
+	--bait_fasta=${params.mamu_bait_fasta}
+	--animal_lookup_path=${params.run_animal_lookup} \
+	--haplotype_lookup=${params.haplotype_lookup} \
+	--diag_to_ipd_json=${params.ipd_avrl_dict}
 	"""
 }
 
