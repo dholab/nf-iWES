@@ -136,7 +136,7 @@ process SEMIPERFECT_ALIGN {
 	// possible.
 	
 	tag "${accession}"
-	publishDir params.alignments, mode: 'copy'
+	publishDir params.alignments, mode: 'copy', overwrite: false
 	
 	memory params.ram
 	cpus 4
