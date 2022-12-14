@@ -66,11 +66,10 @@ if( params.animal.toLowerCase() == "mamu" ){
 params.ipd_fasta = params.config_dir + "/" + "ipd_raw.fasta"
 params.exon2_fasta = params.config_dir + "/" + "exon2_raw.fasta"
 params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.json"
-
-
+params.haplotype_lookup_csv = params.config_dir + "/" + "haplotype_lookup.csv"
 params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
-params.ipd_avrl_dict = params.config_dir + "/" + "ipd_to_diag_lookup.json"
-params.ipd_num_lookup = params.config_dir + "/" + "ipd_num_lookup.json"
+params.miseq_to_ipd_lookup = params.config_dir + "/" + "miseq_to_ipd_lookup.json"
+params.exon_to_ipd_json = params.config_dir + "/" + "exon_to_gen_lookup.json"
 
 if( params.bam_dir.isEmpty() ){
 	params.bam_dir = params.results + "/" + "01-" + params.run_name + "-alignments"
@@ -228,9 +227,9 @@ process CREATE_PIVOT_TABLE {
 	--config_dir=${params.config_dir} \
 	--animal_lookup_path=${params.run_animal_lookup} \
 	--bait_fasta=${params.bait_fasta} \
-	--haplotype_lookup=${params.haplotype_lookup} \
-	--diag_to_ipd_json=${params.ipd_avrl_dict} \
-	--exon_to_ipd_json=
+	--haplotype_lookup=${params.haplotype_lookup_csv} \
+	--diag_to_ipd_json=${params.miseq_to_ipd_lookup} \
+	--exon_to_ipd_json=${params.exon_to_ipd_json}
 	"""
 }
 
