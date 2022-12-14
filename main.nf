@@ -25,7 +25,7 @@ workflow {
 		.fromPath ( "${params.bam_dir}/*.bam" )
 	
 	// Workflow steps 
-	CREATE_REF_MATRIX ( )
+	CREATE_REF_FASTAS ( )
 	
 	SEMIPERFECT_ALIGN ( 
 		CREATE_REF_MATRIX.out.cue,
@@ -58,8 +58,17 @@ workflow {
 // Additional parameters that are derived from parameters set in nextflow.config
 params.config_dir = params.resources + "/" + params.animal
 params.bait_fasta = params.config_dir + "/" + "bait.fasta"
+if( params.animal.toLowerCase() == "mamu" ){
+	params.legacy_fasta = params.mamu_legacy_fasta
+} else {
+	params.legacy_fasta = params.mafa_legacy_fasta
+}
+params.ipd_fasta = params.config_dir + "/" + "ipd_raw.fasta"
+params.exon2_fasta = params.config_dir + "/" + "exon2_raw.fasta"
+params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.json"
+
+
 params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
-params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.csv"
 params.ipd_avrl_dict = params.config_dir + "/" + "ipd_to_diag_lookup.json"
 params.ipd_num_lookup = params.config_dir + "/" + "ipd_num_lookup.json"
 
@@ -77,7 +86,7 @@ params.pivot_tables = params.results + "/" + "03-" + params.run_name + "-pivot_t
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
-process CREATE_REF_MATRIX {
+process CREATE_REF_FASTAS {
 	
 	// This process does something described here
 	
@@ -91,10 +100,10 @@ process CREATE_REF_MATRIX {
 	"""
 	create_ref_fasta_lookups.py \
 	--config_dir=${params.config_dir} \
-	--miseq_legacy_db_path= \
-	--gen_db_path= \
-	--exon_db_path= \
-	--haplotype_json_path= \
+	--miseq_legacy_db_path=${params.legacy_fasta} \
+	--gen_db_path=${params.ipd_fasta} \
+	--exon_db_path=${params.exon2_fasta} \
+	--haplotype_json_path=${params.haplotype_lookup} \
 	--species=${params.animal} \
 	--cp_path=/miniconda2/bin/bbmap/current \
 	--threads=${task.cpus} \
