@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from argparse import ArgumentParser, ArgumentTypeError
 import pandas as pd
 import numpy as np

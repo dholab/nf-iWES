@@ -28,12 +28,12 @@ workflow {
 	CREATE_REF_FASTAS ( )
 	
 	SEMIPERFECT_ALIGN ( 
-		CREATE_REF_MATRIX.out.cue,
+		CREATE_REF_FASTAS.out.cue,
 		ch_reads
 	)
 	
 	GENOTYPE_MAMU ( 
-		CREATE_REF_MATRIX.out.cue,
+		CREATE_REF_FASTAS.out.cue,
 		SEMIPERFECT_ALIGN.out
 			.mix ( ch_alignments )
 			.collect()
@@ -44,9 +44,8 @@ workflow {
 	// )
 	
 	CREATE_PIVOT_TABLE ( 
-		GENOTYPE.out
+		GENOTYPE_MAMU.out
 	)
-	
 	
 }
 // --------------------------------------------------------------- //
@@ -63,8 +62,8 @@ if( params.animal.toLowerCase() == "mamu" ){
 } else {
 	params.legacy_fasta = params.mafa_legacy_fasta
 }
-params.ipd_fasta = params.config_dir + "/" + "ipd_raw.fasta"
-params.exon2_fasta = params.config_dir + "/" + "exon2_raw.fasta"
+params.ipd_fasta = params.config_dir + "/" + "exon.fasta"
+params.exon2_fasta = params.config_dir + "/" + "exon.fasta"
 params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.json"
 params.haplotype_lookup_csv = params.config_dir + "/" + "haplotype_lookup.csv"
 params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
@@ -98,9 +97,9 @@ process CREATE_REF_FASTAS {
 	// AVRL amplicon sequences, and which IPD alleles correspond with each other. That way, 
 	// the workflow is able to prioritize the best match to the longest available reference 
 	// sequence downstream.
-	
+
 	output:
-	val "cue", emit: cue
+	val "finished", emit: cue
 	
 	script:
 	ref_matrix_dir = file('${params.config_dir}/${params.animal)_ref_matrix')
@@ -114,9 +113,8 @@ process CREATE_REF_FASTAS {
 	--exon_db_path=${params.exon2_fasta} \
 	--haplotype_json_path=${params.haplotype_lookup} \
 	--species=${params.animal} \
-	--cp_path=/miniconda2/bin/bbmap/current \
-	--threads=${task.cpus} \
-	--ram=${task.memory}
+	--cp_path=/opt/conda/bbmap/current && \
+	create_ipd_ref_matrix.py --config_dir=${params.config_dir}
 	"""
 }
 
@@ -137,7 +135,7 @@ process SEMIPERFECT_ALIGN {
 	cpus 4
 	
 	input:
-	each val(cue)
+	each cue
 	tuple val(accession), path(reads1), path(reads2)
 	
 	output:
@@ -146,7 +144,7 @@ process SEMIPERFECT_ALIGN {
 	script:
 	"""
 	semiperfect_align.py \
-	--cp_dir=/miniconda2/bin/bbmap/current \
+	--cp_dir=/opt/conda/bbmap/current \
 	--fastq_dir=. \
 	--bam_dir=. \
 	--bait_fasta=${params.bait_fasta} \
@@ -177,7 +175,7 @@ process GENOTYPE_MAMU {
 	publishDir params.genotypes, mode: 'copy'
 	
 	input:
-	each val(cue)
+	val cue
 	path bam_list
 	
 	output:
@@ -211,7 +209,7 @@ process GENOTYPE_MAFA {
 	publishDir params.genotypes, mode: 'copy'
 	
 	input:
-	each val(cue)
+	val cue
 	path bam_list
 	
 	output:

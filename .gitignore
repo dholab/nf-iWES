@@ -13,3 +13,5 @@ report.html*
 *.png.*
 ._*
 resources/ipd*.fasta
+resources/*.sam
+*.html
