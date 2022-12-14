@@ -49,19 +49,19 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         required=False)
 
     parser.add_argument('--unpaired_edge_threshold',
-                        type=str,
+                        type=int,
                         help='unpaired_edge_threshold how far (bp) from the edge of reference sequence \
                         to allow the paired read to be unmapped (unmated) and still included',
                         default=500,
                         required=False)
     parser.add_argument('--depth_threshold',
-                        type=str,
+                        type=int,
                         help='depth_threshold how minimum depth of coverage for all \
                         (except the near the edge by defied as edge distance threshold)',
                         default=3,
                         required=False)
     parser.add_argument('--edge_distance_threshold',
-                        type=str,
+                        type=int,
                         help='how far from the edge of the ipd reference sequence to allow for zero depth of coverage \
                              depth of coverage does not apply close to the edge, \
                              short sequence miseq db sequences do not apply as it is set to zero.',

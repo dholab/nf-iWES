@@ -2,6 +2,7 @@
 work/
 .nova/
 deprecated/
+results/
 
 .nextflow.log*
 .DS_Store
