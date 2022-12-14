@@ -13,5 +13,10 @@ report.html*
 *.png.*
 ._*
 resources/ipd*.fasta
-resources/*.sam
+resources/mamu/*.sam
+resources/mafa/*.sam
+resources/mamu/exon.fasta
+resources/mafa/exon.fasta
+resources/mamu/gen.fasta
+resources/mafa/gen.fasta
 *.html

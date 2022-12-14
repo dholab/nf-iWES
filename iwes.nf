@@ -62,8 +62,8 @@ if( params.animal.toLowerCase() == "mamu" ){
 } else {
 	params.legacy_fasta = params.mafa_legacy_fasta
 }
-params.ipd_fasta = params.config_dir + "/" + "exon.fasta"
-params.exon2_fasta = params.config_dir + "/" + "exon.fasta"
+params.ipd_fasta = params.config_dir + "/" + "ipd_raw.fasta"
+params.exon2_fasta = params.config_dir + "/" + "exon2_raw.fasta"
 params.haplotype_lookup = params.config_dir + "/" + "haplotype_lookup.json"
 params.haplotype_lookup_csv = params.config_dir + "/" + "haplotype_lookup.csv"
 params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
