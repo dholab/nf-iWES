@@ -87,7 +87,17 @@ params.pivot_tables = params.results + "/" + "03-" + params.run_name + "-pivot_t
 
 process CREATE_REF_FASTAS {
 	
-	// This process does something described here
+	// Here we produce folders of animal-specific reference "keys" or "lookups." These 
+	// files tell the code downstream which of our reference sequences draw from the same 
+	// alleles. This is a necessity with our current approach to genotyping, which uses all 
+	// available gDNA sequences from the Immuno Polymorphism Database (IPD) plus exon 2 
+	// "fall-backs." Some alleles in IPD are cDNA-only, with no introns. For those sequences, 
+	// we fall back to either 1) an exon 2-only sequence or 2) a legacy ~150-bp genotyping 
+	// amplicon from the MHC genotyping workflow at the AIDS Vaccine Research Laboratory (AVRL). 
+	// In this step, the workflow uses mapping to identify which exon-2-only sequences, which 
+	// AVRL amplicon sequences, and which IPD alleles correspond with each other. That way, 
+	// the workflow is able to prioritize the best match to the longest available reference 
+	// sequence downstream.
 	
 	output:
 	val "cue", emit: cue
@@ -112,7 +122,13 @@ process CREATE_REF_FASTAS {
 
 process SEMIPERFECT_ALIGN {
 	
-	// This process does something described here
+	// Here the workflow maps reads from each animal to all possible reference allele sequences. 
+	// As described above, these reference allele sequences include full-length IPD gDNA sequences, 
+	// exon-2-only sequences, and legacy AVRL amplicon sequences. Importantly, this step uses BBMap 
+	// in "semiperfect mode," which allows that a read must match perfectly to the reference allele, 
+	// but allows some overhang, e.g., the read hangs over the 5' or the 3' end of the reference 
+	// sequences. This allows us to maintain stringent read-mapping while retaining as much data as 
+	// possible.
 	
 	tag "${accession}"
 	publishDir params.bam_dir, mode: 'copy'
@@ -142,7 +158,20 @@ process SEMIPERFECT_ALIGN {
 
 process GENOTYPE_MAMU {
 	
-	// This process does something described here
+	// In this step, the workflow identifies the best-possible allele sequence matches and uses 
+	// pysam to remove a number of issues that may appear in the data. These include what we call 
+	// "computational chimeras;" these are cases where a read from one allele maps perfectly to a 
+	// different allele. With short-read data like that used here, this happens often in the MHC 
+	// region, where many alleles are extremely similar to one another, save for a few key differences 
+	// separated by hundreds of bases. To account for this, our script requires that all reads must 
+	// start within 50 bases of one another. It also requires that paired reads must be within 500 
+	// bases either end of the reference, as otherwise, it's likely that the two reads were sequenced 
+	// from different alleles. In that case, we keep one of the two paired alleles. Finally, we 
+	// require that each allele has a certain baseline read depth-of-coverage with the parameter 
+	// "depth_threshold," though we make this less stringent near the edges of the reference alleles 
+	// with the parameter "edge_distance_threshold." All of these parameters can be controlled in the 
+	// file nextflow.config. We recomment that users do not modify the sources code in this .nf script 
+	// or in all the bin/ scripts. This process runs only for Rhesus macaques.
 	
 	tag "${params.animal}"
 	publishDir params.genotypes, mode: 'copy'
@@ -175,7 +204,8 @@ process GENOTYPE_MAMU {
 
 process GENOTYPE_MAFA {
 	
-	// This process does something described here
+	// This process does all the same thomgs as GENOTYPE_MAMU, except for Cynomolgus Macaque reads and
+	// reference allele sequences.
 	
 	tag "${params.animal}"
 	publishDir params.genotypes, mode: 'copy'
@@ -208,7 +238,10 @@ process GENOTYPE_MAFA {
 
 process CREATE_PIVOT_TABLE {
 	
-	// This process does something described here
+	// Now that mapping, genotyping, and filtering is complete, this step simply formats all the data
+	// in a convenient, Pivot table excel file. This file indicates cases where reads mapped ambiguously
+	// between two alleles, when alleles have untrustworthy depth-of-coverage, when reads mapped to a
+	// shorter reference allele instead of a full-length gDNA with introns, etc.
 	
 	tag "${params.animal}"
 	publishDir params.results, mode: 'copy'
