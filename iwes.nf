@@ -244,7 +244,7 @@ process CREATE_PIVOT_TABLE {
 	// shorter reference allele instead of a full-length gDNA with introns, etc.
 	
 	tag "${params.animal}"
-	publishDir params.results, mode: 'copy'
+	publishDir params.pivot_tables, mode: 'copy'
 	
 	input:
 	tuple path(csv_files), val(animal)
