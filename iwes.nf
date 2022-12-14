@@ -70,8 +70,8 @@ params.run_animal_lookup = params.config_dir + "/" + "baylor_33_mamu_lookup.csv"
 params.miseq_to_ipd_lookup = params.config_dir + "/" + "miseq_to_ipd_lookup.json"
 params.exon_to_ipd_json = params.config_dir + "/" + "exon_to_gen_lookup.json"
 
-if( params.bam_dir.isEmpty() ){
-	params.bam_dir = params.results + "/" + "01-" + params.run_name + "-alignments"
+if( !params.bam_dir ){
+	params.alignments = params.results + "/" + "01-" + params.run_name + "-alignments"
 }
 params.genotypes = params.results + "/" + "02-" + params.run_name + "-genotypes"
 params.pivot_tables = params.results + "/" + "03-" + params.run_name + "-pivot_table"
@@ -136,7 +136,7 @@ process SEMIPERFECT_ALIGN {
 	// possible.
 	
 	tag "${accession}"
-	publishDir params.bam_dir, mode: 'copy'
+	publishDir params.alignments, mode: 'copy'
 	
 	memory params.ram
 	cpus 4
