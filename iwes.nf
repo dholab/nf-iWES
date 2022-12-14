@@ -14,7 +14,7 @@ workflow {
 	
 	// input channels
 	ch_reads = Channel
-		.fromFilePairs ( '${params.fastq_dir}/*_R{1,2}_001.fastq.gz', flat: true )
+		.fromFilePairs ( "${params.fastq_dir}/*_R{1,2}_001.fastq.gz", flat: true )
 	
 	// ch_samples = Channel
 	// 	.fromPath( params.samplesheet )
@@ -114,7 +114,7 @@ process CREATE_REF_FASTAS {
 		--exon_db_path=${params.exon2_fasta} \
 		--haplotype_json_path=${params.haplotype_lookup} \
 		--species=${params.animal} \
-		--cp_path=/opt/conda/bbmap/current && \
+		--cp_path=/opt/conda/bin/bbmap/current && \
 		create_ipd_ref_matrix.py --config_dir=${params.config_dir} && \
 		cue="proceed"
 		"""
@@ -151,13 +151,11 @@ process SEMIPERFECT_ALIGN {
 	script:
 	"""
 	semiperfect_align.py \
-	--cp_dir=/opt/conda/bbmap/current \
+	--cp_dir=/opt/conda/bin/bbmap/current \
 	--fastq_dir=. \
 	--bam_dir=. \
 	--bait_fasta=${params.bait_fasta} \
-	--config_dir=${params.config_dir} \
-	--threads=${task.cpus} \
-	--ram=${task.memory}
+	--config_dir=${params.config_dir}
 	"""
 }
 
