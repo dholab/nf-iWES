@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from argparse import ArgumentParser, ArgumentTypeError
 import pandas as pd
-import os
 import numpy as np
 import json
 import math
@@ -39,7 +38,6 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         help='2 column csv file each row is a file prefix to corresponding sample id',
                         required=True)
 
-
     parser.add_argument('--bait_fasta',
                         type=str,
                         help='Where you ipd-diag combined fasta exists',
@@ -54,6 +52,12 @@ def parse_process_arrays_args(parser: ArgumentParser):
     parser.add_argument('--diag_to_ipd_json',
                         type=str,
                         help='diag to ipd look up json created before',
+                        default=None,
+                        required=False)
+
+    parser.add_argument('--exon_to_ipd_json',
+                        type=str,
+                        help='exon to ipd look up json created before',
                         default=None,
                         required=False)
 
@@ -79,26 +83,18 @@ bait_fasta = args.bait_fasta
 haplotype_lookup = args.haplotype_lookup
 animal_lookup_path = args.animal_lookup_path
 diag_to_ipd_json = args.diag_to_ipd_json
-
+exon_to_ipd_json = args.exon_to_ipd_json
 if bait_fasta is None:
     bait_fasta = os.path.join(config_dir, 'bait.fasta')
 
 if haplotype_lookup is None:
     haplotype_lookup = os.path.join(config_dir, 'haplotype_lookup.csv')
 if diag_to_ipd_json is None:
-    diag_to_ipd_json = os.path.join(config_dir, 'diag_to_ipd_lookup.json')
-#
-
-
-os.makedirs(out_dir, exist_ok=True)
-
-
-df_norm_median = pd.read_csv(os.path.join(out_dir, '{0}_norm_median.csv'.format(project_name)))
-df_norm_median_miseq = pd.read_csv(os.path.join(out_dir, '{0}_norm_median_miseq.csv'.format(project_name)))
-df_read_ct = pd.read_csv(os.path.join(out_dir, '{0}_read_ct.csv'.format(project_name)))
+    diag_to_ipd_json = os.path.join(config_dir, 'miseq_to_ipd_lookup.json')
+if exon_to_ipd_json is None:
+    exon_to_ipd_json = os.path.join(config_dir, 'exon_to_gen_lookup.json')
 
 xlsx_filepath = None
-os.makedirs(out_dir, exist_ok=True)
 
 
 def error_code(x, y, z):
@@ -147,29 +143,49 @@ def highlight_cells(k, x):
         return None
 
     return [None] * 18 + [style_cell(y) for y in z]
-# this is a bit complicated:
-# First, we need unique names for columns that will/will not be merged
+
 
 print(diag_to_ipd_json)
 with open(diag_to_ipd_json) as f_in:
     diag_to_ipd_dict = json.load(f_in)
 
-df = df_norm_median.copy()
-df.rename(columns={'ALLELE': 'allele', 'SAMPLE_NUM': 'accession', 'DEPTH_ADJ': 'read_ct'}, inplace=True)
+with open(exon_to_ipd_json) as f_in:
+    exon_to_ipd_dict = json.load(f_in)
 
-df_miseq = df_norm_median_miseq.copy()
-df_miseq.rename(columns={'ALLELE': 'miseq_allele', 'SAMPLE_NUM': 'accession',
+os.makedirs(out_dir, exist_ok=True)
+df_norm_median = pd.read_csv(os.path.join(out_dir, '{0}_norm_median_all.csv'.format(project_name)))
+df_read_ct = pd.read_csv(os.path.join(out_dir, '{0}_read_ct.csv'.format(project_name)))
+
+df = df_norm_median[df_norm_median['DB'] == 'gen']
+df_miseq = df_norm_median[df_norm_median['DB'] == 'miseq']
+df_exon = df_norm_median[df_norm_median['DB'] == 'exon']
+
+df.rename(columns={'ALLELE': 'allele',
+                   'SAMPLE_NUM': 'accession',
+                   'DEPTH_ADJ': 'read_ct'}, inplace=True)
+df_miseq.rename(columns={'ALLELE': 'miseq_allele',
+                         'SAMPLE_NUM': 'accession',
                          'DEPTH_ADJ': 'read_ct',
                          'unique_maps_per_allele': 'unique_maps_per_allele_miseq'}, inplace=True)
-
+df_exon.rename(columns={'ALLELE': 'exon_allele',
+                        'SAMPLE_NUM': 'accession',
+                        'DEPTH_ADJ': 'read_ct',
+                        'unique_maps_per_allele': 'unique_maps_per_allele_exon'}, inplace=True)
+# filter for alleles in miseq db and not in the corresponding genomic/ exon2.
 df_dict = pd.DataFrame()
 for key, value in diag_to_ipd_dict.items():
     df_temp = pd.DataFrame({'miseq_allele': key, 'allele': value})
     df_dict = pd.concat([df_dict, df_temp], ignore_index=True)
-df_miseq_m = df_miseq.merge(df_dict, on=['miseq_allele'], how='inner')
+df_miseq_m = df_miseq.merge(df_dict, on=['miseq_allele'], how='left')
 df_miseq_m['accession'] = df_miseq_m['accession'].astype(str)
+df_exon_2 = df_exon.copy()
+df_exon_2.rename(columns={'exon_allele': 'allele',
+                          'unique_maps_per_allele_exon': 'unique_maps_per_allele'}, inplace=True)
 
-df_j = df[['allele', 'accession', 'unique_maps_per_allele']]
+df_k = pd.concat([df_exon_2, df], ignore_index=True)
+
+df_j = df_k[['allele', 'accession', 'unique_maps_per_allele']]
+
 df_j['accession'] = df_j['accession'].astype(str)
 df_miseq_m_2 = df_miseq_m.merge(df_j, on=['allele', 'accession'], how='left')
 df_miseq_m_2 = df_miseq_m_2.fillna(0)
@@ -179,8 +195,32 @@ df_miseq = df_miseq[df_miseq['unique_maps_per_allele'] == 0]
 df_miseq.drop(columns=['unique_maps_per_allele'], inplace=True)
 df_miseq.rename(columns={'unique_maps_per_allele_miseq': 'unique_maps_per_allele'}, inplace=True)
 df_miseq.sort_values(by=['accession', 'allele'], inplace=True)
+# filter for alleles in exon 2 and not in corresponding genomic.
+df_dict = pd.DataFrame()
+for key, value in exon_to_ipd_dict.items():
+    df_temp = pd.DataFrame({'exon_allele': key, 'allele': value})
+    df_dict = pd.concat([df_dict, df_temp], ignore_index=True)
 
+df_exon_m = df_exon.merge(df_dict, on=['exon_allele'], how='left')
+df_exon_m['accession'] = df_exon_m['accession'].astype(str)
+
+df_j = df[['allele', 'accession', 'unique_maps_per_allele']]
+df_j['accession'] = df_j['accession'].astype(str)
+df_exon_m_2 = df_exon_m.merge(df_j, on=['allele', 'accession'], how='left')
+df_exon_m_2 = df_exon_m_2.fillna(0)
+
+df_exon = df_exon_m_2.groupby(['exon_allele',
+                               'read_ct',
+                               'accession',
+                               'unique_maps_per_allele_exon'])[
+    'unique_maps_per_allele'].max().reset_index().rename(columns={'exon_allele': 'allele'})
+
+df_exon = df_exon[df_exon['unique_maps_per_allele'] == 0]
+df_exon.drop(columns=['unique_maps_per_allele'], inplace=True)
+df_exon.rename(columns={'unique_maps_per_allele_exon': 'unique_maps_per_allele'}, inplace=True)
+df_exon.sort_values(by=['accession', 'allele'], inplace=True)
 df = pd.concat([df_miseq, df], ignore_index=True)
+df = pd.concat([df_exon, df], ignore_index=True)
 
 df_read_ct_pivot = df_read_ct.pivot_table(values='sample_read_ct',
                                           columns=['gs_id'],
@@ -207,30 +247,21 @@ df['gs_id'] = df['gs_id'].astype(str)
 df_haplo_ready = df.copy()
 df_haplo_ready.rename(columns={'allele_ipd': 'allele'}, inplace=True)
 df_haplo_ready = df_haplo_ready[['allele', 'read_ct', 'gs_id']]
-df_haplo_ready.to_csv('/Volumes/T7/ipd/{0}_genotypes.csv'.format(project_name), index=False)
+# df_haplo_ready.to_csv('/Volumes/T7/ipd/{0}_genotypes.csv'.format(project_name), index=False)
 df_read_ct['gs_id'] = df_read_ct['gs_id'].astype(str)
 
 if os.path.exists(animal_lookup_path):
     animal_lookup = pd.read_csv(animal_lookup_path)
-    # print(animal_lookup)
     animal_lookup = animal_lookup[['gs_id']]
     animal_lookup_dict = {}
     animal_lookup['gs_id'] = animal_lookup['gs_id'].astype(str)
     df = df.merge(animal_lookup[['gs_id']], how='inner', on=['gs_id'])
     df_read_ct = df_read_ct.merge(animal_lookup[['gs_id']], how='inner', on=['gs_id'])
-# df['allele'] = ['-'.join(x.split('-')[1:])  if else for x in df['allele']]
-
 
 df['allele_ipd'] = ['-'.join(x.split('-')[1:]) if len(x.split('-')) > 1 else x for x in df['allele']]
 df['MHC_TYPE'] = [x.split('_')[1] if int((y * 100) % 100) in [49, 99] else x for x, y in
                   zip(df['allele'], df['read_ct'])]
 
-# print(df)
-# df['allele_ipd'] = ['-'.join(x.split('-')[1:])  for x in df['allele']]
-# df['MHC_TYPE'] = [x.split('_')[1] if int((y * 100) % 100) in [49, 99] else x.split('_')[0] for x, y in
-#                   zip(df['allele'], df['read_ct'])]
-
-# print(df)
 type_dict = {'Mamu-A1': 'MHC_A_HAPLOTYPES',
              'Mamu-A2': 'MHC_A_HAPLOTYPES',
              'Mamu-B': 'MHC_B_HAPLOTYPES',
@@ -243,26 +274,15 @@ type_dict = {'Mamu-A1': 'MHC_A_HAPLOTYPES',
              'Mamu-DPA1': 'MHC_DPA_HAPLOTYPES',
              'Mamu-DPB1': 'MHC_DPB_HAPLOTYPES'
              }
-#  'Mamu-A3':'MHC_A_HAPLOTYPES', #'Mamu-A4', 'Mamu-A6', 'Mamu-AG1',
-# 'Mamu-AG2', 'Mamu-AG3', 'Mamu-AG4', 'Mamu-AG5', 'Mamu-AG6',
-# 'Mamu-B02Ps', 'Mamu-B10Ps', 'Mamu-B11L', 'Mamu-B14Ps', 'Mamu-B17',
-# 'Mamu-B21Ps',
-# 'Mamu-E', 'Mamu-G', 'Mamu-I', 'Mamu-J'}
+
 print(list(df['MHC_TYPE'].unique()))
 df['TYPE'] = [type_dict[x] if x in type_dict.keys() else x for x in df['MHC_TYPE']]
 
 df.to_csv(os.path.join(out_dir, 'concat_haplotype.csv'), index=False)
 
-# if xlsx_filepath is None:
 xlsx_filepath = os.path.join(out_dir, '{0}.pivot.xlsx'.format(project_name))
 df['# Obs'] = df.groupby('allele_ipd')['read_ct'].transform('count')
 # change to get normalized values
-# max_value = df_read_ct['sample_read_ct'].max()
-# df = df.merge(df_read_ct, on='gs_id', how='left')
-# df['norm_read_ct'] = df['read_ct'] / df['sample_read_ct'] * max_value
-# df['norm_read_ct'] = df['norm_read_ct'].round()
-# df['read_ct'] = [x - 0.01 if int((y * 100) % 100) in [49, 99] else x for x, y in zip(df['norm_read_ct'],
-# df['read_ct'])]
 gs_id_list = list(df['gs_id'].unique())
 gs_id_list.sort()
 df_gs_id = pd.DataFrame([gs_id_list], columns=gs_id_list)
@@ -303,14 +323,11 @@ genotype_pivot['gs_id'] = genotype_pivot['gs_id'].str.replace('-nuc', '-cdna')
 genotype_pivot['gs_id'] = genotype_pivot['gs_id'].str.replace('A1:028g1-miseq', 'AG3:02g1_A028-miseq')
 genotype_pivot['gs_id'] = genotype_pivot['gs_id'].str.replace('A1:110g1-miseq', 'A1:110g1-cdna-miseq')
 genotype_pivot['gs_id'] = genotype_pivot['gs_id'].str.replace('A1:119g1-miseq', 'AG3:02g2_A119-miseq')
-genotype_pivot['gs_id'] = [x.replace(':', '*', 1) if x.endswith('-miseq') else x for x in genotype_pivot['gs_id']]
+genotype_pivot['gs_id'] = [x.replace(':', '*', 1)  for x in genotype_pivot['gs_id']]
 genotype_pivot['gs_id'] = genotype_pivot['gs_id'].str.replace('-gen', '')
-# print(genotype_pivot)
-# diag_dict
-# df_count_summary_pivot.merge()
 
 df_list = [df_gs_id, df_count_summary_pivot, df_read_ct_pivot, df_median_counts_pivot, genotype_pivot]
-# df_merge = df.copy()
+
 df_haplo_pivot = pd.DataFrame({'gs_id': ['MHC A HAPLOTYPES 1', 'MHC A HAPLOTYPES 2',
                                          'MHC B HAPLOTYPES 1', 'MHC B HAPLOTYPES 2',
                                          'MHC DRB HAPLOTYPES 1', 'MHC DRB HAPLOTYPES 2',
@@ -403,9 +420,6 @@ for animal_i in animal_list2:
         first_item = False
         continue
     df_xlx_pivot_2 = df_xlx_pivot_2.apply(highlight_cells, x=list(df_xlx_pivot[animal_i]), subset=animal_i)
-# for animal_i in animal_list2:
-#     df_xlx_pivot[animal_i] = [int(x) if isinstance(x, float) else x for x in df_xlx_pivot[animal_i]]
-
 
 df_xlx_pivot_2.to_excel(xlsx_filepath, sheet_name='Sheetname_1', index=False)
 print(xlsx_filepath)

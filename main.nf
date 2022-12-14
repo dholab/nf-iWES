@@ -89,7 +89,7 @@ process CREATE_REF_MATRIX {
 	if( !ref_matrix_dir.exists() )
 		ref_matrix_dir.mkdir()
 	"""
-	create_ipd_ref_matrix.py \
+	create_ref_fasta_lookups.py \
 	--bait_fasta=${params.bait_fasta} \
 	--config_dir=${params.config_dir} \
 	--ipd_ref_matrix_dir=${ref_matrix_dir}
@@ -116,7 +116,7 @@ process SEMIPERFECT_ALIGN {
 	script:
 	"""
 	semiperfect_align.py \
-	--cp_dir=/Users/dabaker3/anaconda3/bin/bbmap/current \
+	--cp_dir=/miniconda2/bin/bbmap/current \
 	--fastq_dir=. \
 	--bam_dir=. \
 	--bait_fasta=${params.bait_fasta} \

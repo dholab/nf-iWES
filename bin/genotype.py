@@ -36,9 +36,10 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         type=str,
                         help='where the config files are stored',
                         required=True)
+
     parser.add_argument('--bait_fasta',
                         type=str,
-                        help='Where you ipd-diag combined fasta exists',
+                        help='Where you genomic-exon2-miseq combined fasta exists',
                         default=None,
                         required=False)
     parser.add_argument('--ipd_ref_matrix_dir',
@@ -46,6 +47,7 @@ def parse_process_arrays_args(parser: ArgumentParser):
                         help='directory where the ipd reference matrix files exist',
                         default=None,
                         required=False)
+
     parser.add_argument('--unpaired_edge_threshold',
                         type=str,
                         help='unpaired_edge_threshold how far (bp) from the edge of reference sequence \
@@ -273,7 +275,7 @@ def get_depth(df_bam_m, ipd_length_dict, fillzero=True):
         df_depth_range = make_range_from_fasta_lengths_dict(ipd_length_dict, allele_list)
         df_depth = df_depth.merge(df_depth_range, on=['ALLELE', 'POSITION'], how='outer')
     df_depth['SAMPLE_NUM'] = sample_i
-    df_depth['HAPLOTYPE_GROUP'] = [x.split('__')[0] for x in df_depth['ALLELE']]
+    df_depth['HAPLOTYPE_GROUP'] = [x.split('_')[0] for x in df_depth['ALLELE']]
     df_depth.fillna(value=0, inplace=True)
     df_depth['unique_maps_per_allele'] = df_depth.groupby(['ALLELE'])['unique_maps_per_allele'].transform('max')
     return df_depth
@@ -735,7 +737,7 @@ for bam_file_i in bam_filelist:
     # df_depth.to_csv(os.path.join(out_dir, '{0}_m_detph.csv'.format(num_i)), index=False)
     df_depth = get_depth(df_bam, ipd_length_dict, fillzero=True)
     # df_depth.to_csv(os.path.join(out_dir, '{0}_m_quick_depth.csv'.format(sample_i)), index=False)
-    print('Finished ipd depth with zero fill and depth of coverage2 of 4: {0}'.format(sample_i))
+    print('Finished genomic depth with zero fill and depth of coverage2 of 4: {0}'.format(sample_i))
     allele_list = depth_screening(df_depth, depth_threshold, edge_distance_threshold, ipd_length_dict)
     # print(len(allele_list))
     df_bam = filter_count_map_bam(df_bam, allele_list)
@@ -745,7 +747,7 @@ for bam_file_i in bam_filelist:
     df_bam = df_bam[df_bam['MAX_PAIRS'] == df_bam['PAIRED']]
 
     df_depth = get_depth(df_bam, ipd_length_dict, fillzero=True)
-    print('Finished ipd depth 3 of 4: {0}'.format(sample_i))
+    print('Finished genomic depth 3 of 4: {0}'.format(sample_i))
     allele_list = depth_screening(df_depth, depth_threshold, edge_distance_threshold, ipd_length_dict)
     df_bam = filter_count_map_bam(df_bam, allele_list)
     # print(len(allele_list))
@@ -762,18 +764,18 @@ for bam_file_i in bam_filelist:
     df_bam_m.to_csv(os.path.join(out_dir, 'expanded_maps_ipd', '{0}_expanded_maps_ipd.csv'.format(sample_i)),
                     index=False)
     df_depth = get_depth(df_bam_m, ipd_length_dict, fillzero=True)
-    print('Finished ipd depth 4 of 4: {0}'.format(sample_i))
-    os.makedirs(os.path.join(out_dir, 'depth_ipd'), exist_ok=True)
-    df_depth.to_csv(os.path.join(out_dir, 'depth_ipd', '{0}_depth_ipd.csv'.format(sample_i)), index=False)
+    print('Finished genomic depth 4 of 4: {0}'.format(sample_i))
+    os.makedirs(os.path.join(out_dir, 'depth_gen'), exist_ok=True)
+    df_depth.to_csv(os.path.join(out_dir, 'depth_gen', '{0}_depth_gen.csv'.format(sample_i)), index=False)
 
     df_norm_median_i = get_normalized_median_by_allele_sample(df_depth, median_groups=['Mamu-A1', 'Mamu-B'])
     df_norm_median_i = df_norm_median_i.merge(df_gap_summary_i, on=['ALLELE',
                                                                     'SAMPLE_NUM'], how='inner')
-    os.makedirs(os.path.join(out_dir, 'normalized_median_ipd'), exist_ok=True)
-    df_norm_median_i.to_csv(os.path.join(out_dir, 'normalized_median_ipd', '{0}_norm_median.csv'.format(sample_i)),
+    os.makedirs(os.path.join(out_dir, 'normalized_median_gen'), exist_ok=True)
+    df_norm_median_i.to_csv(os.path.join(out_dir, 'normalized_median_gen', '{0}_norm_median.csv'.format(sample_i)),
                             index=False)
     # print(allele_list)
-    print('--- IPD complete {0} ---'.format(sample_i))
+    print('--- Genomic complete {0} ---'.format(sample_i))
     df_median_miseq_i, df_depth_miseq, df_miseq_m = short_sequence_analysis(df_ss2=df_miseq,
                                                                             sample=sample_i,
                                                                             suffix='miseq')
@@ -792,7 +794,7 @@ for bam_file_i in bam_filelist:
     print('--- start make filtered and expanded bam files ---')
     df_bam_in = bam_to_df_2(bam_file_i)
     os.makedirs(os.path.join(out_dir, 'miseq_bam'), exist_ok=True)
-    os.makedirs(os.path.join(out_dir, 'ipd_bam'), exist_ok=True)
+    os.makedirs(os.path.join(out_dir, 'gen_bam'), exist_ok=True)
     os.makedirs(os.path.join(out_dir, 'exon_bam'), exist_ok=True)
     # miseq db
     makebam(df_bam_in=df_bam_in,
@@ -804,15 +806,14 @@ for bam_file_i in bam_filelist:
             df_mapped=df_exon_m,
             ipd_length_dict=ipd_length_dict,
             out_sam=os.path.join(out_dir, 'exon_bam', '{0}_exon.sam'.format(sample_i)))
-    # ipd db
+    # gen db
     makebam(df_bam_in=df_bam_in,
             df_mapped=df_bam_m,
             ipd_length_dict=ipd_length_dict,
-            out_sam=os.path.join(out_dir, 'ipd_bam', '{0}_ipd.sam'.format(sample_i)))
+            out_sam=os.path.join(out_dir, 'gen_bam', '{0}_gen.sam'.format(sample_i)))
     print('--- SAMPLE complete {0} ---'.format(sample_i))
     print(time.time() - t2)
     t2 = time.time()
-    break
 
 df_norm_median['DEPTH_ADJ'] = [annotate_depth(x, y, z) for x, y, z in zip(df_norm_median['DEPTH_ADJ'],
                                                                           df_norm_median['unique_maps_per_allele'],
@@ -824,6 +825,11 @@ df_median_miseq.to_csv(os.path.join(out_dir, '{0}_norm_median_miseq.csv'.format(
 df_median_exon.to_csv(os.path.join(out_dir, '{0}_norm_median_exon.csv'.format(project_name)), index=False)
 df_read_ct.to_csv(os.path.join(out_dir, '{0}_read_ct.csv'.format(project_name)), index=False)
 df_gap_summary.to_csv(os.path.join(out_dir, '{0}_gaps.csv'.format(project_name)), index=False)
+df_norm_median['DB'] = 'gen'
+df_median_miseq['DB'] = 'miseq'
+df_median_exon['DB'] = 'exon'
+df_norm_median_all = pd.concat([df_norm_median, df_median_miseq, df_median_exon], ignore_index=True)
+df_norm_median_all.to_csv(os.path.join(out_dir, '{0}_norm_median_all.csv'.format(project_name)), index=False)
 print(out_dir)
 print(time.time() - t1)
 print('---Pipeline Complete--')
