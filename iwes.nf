@@ -99,23 +99,30 @@ process CREATE_REF_FASTAS {
 	// sequence downstream.
 
 	output:
-	val "finished", emit: cue
+	env(cue), emit: cue
 	
 	script:
-	ref_matrix_dir = file('${params.config_dir}/${params.animal)_ref_matrix')
-	if( !ref_matrix_dir.exists() )
-		ref_matrix_dir.mkdir()
-	"""
-	create_ref_fasta_lookups.py \
-	--config_dir=${params.config_dir} \
-	--miseq_legacy_db_path=${params.legacy_fasta} \
-	--gen_db_path=${params.ipd_fasta} \
-	--exon_db_path=${params.exon2_fasta} \
-	--haplotype_json_path=${params.haplotype_lookup} \
-	--species=${params.animal} \
-	--cp_path=/opt/conda/bbmap/current && \
-	create_ipd_ref_matrix.py --config_dir=${params.config_dir}
-	"""
+	if ( params.create_reference_files == true ){
+		ref_matrix_dir = file('${params.config_dir}/${params.animal)_ref_matrix')
+		if( !ref_matrix_dir.exists() )
+			ref_matrix_dir.mkdir()
+		"""
+		create_ref_fasta_lookups.py \
+		--config_dir=${params.config_dir} \
+		--miseq_legacy_db_path=${params.legacy_fasta} \
+		--gen_db_path=${params.ipd_fasta} \
+		--exon_db_path=${params.exon2_fasta} \
+		--haplotype_json_path=${params.haplotype_lookup} \
+		--species=${params.animal} \
+		--cp_path=/opt/conda/bbmap/current && \
+		create_ipd_ref_matrix.py --config_dir=${params.config_dir} && \
+		cue="proceed"
+		"""
+	} else {
+		"""
+		cue="proceed"
+		"""
+	}
 }
 
 process SEMIPERFECT_ALIGN {
@@ -139,7 +146,7 @@ process SEMIPERFECT_ALIGN {
 	tuple val(accession), path(reads1), path(reads2)
 	
 	output:
-	path "*.bam"
+	path "*.bam*"
 	
 	script:
 	"""

@@ -12,11 +12,14 @@ report.html*
 *.dot
 *.png.*
 ._*
-resources/ipd*.fasta
 resources/mamu/*.sam
 resources/mafa/*.sam
+resources/mamu/ipd.fasta
+resources/mafa/ipd.fasta
 resources/mamu/exon.fasta
 resources/mafa/exon.fasta
 resources/mamu/gen.fasta
 resources/mafa/gen.fasta
+resources/mamu/bait.fasta.fai
+resources/mafa/bait.fasta.fai
 *.html
