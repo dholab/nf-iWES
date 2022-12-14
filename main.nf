@@ -90,9 +90,15 @@ process CREATE_REF_MATRIX {
 		ref_matrix_dir.mkdir()
 	"""
 	create_ref_fasta_lookups.py \
-	--bait_fasta=${params.bait_fasta} \
 	--config_dir=${params.config_dir} \
-	--ipd_ref_matrix_dir=${ref_matrix_dir}
+	--miseq_legacy_db_path= \
+	--gen_db_path= \
+	--exon_db_path= \
+	--haplotype_json_path= \
+	--species=${params.animal} \
+	--cp_path=/miniconda2/bin/bbmap/current \
+	--threads=${task.cpus} \
+	--ram=${task.memory}
 	"""
 }
 
@@ -146,15 +152,15 @@ process GENOTYPE_MAMU {
 	script:
 	"""
 	genotype.py \
-	--project_name=${params.run_name} \
 	--out_dir=. \
 	--bam_dir=. \
+	--project_name=${params.run_name} \
 	--config_dir=${params.config_dir} \
-	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--bait_fasta=${params.bait_fasta} \
-	--edge_distance_threshold=${params.edge_distance_threshold} \
+	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
 	--depth_threshold=${params.depth_threshold} \
+	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--low_ram_mode=${params.genotype_in_low_ram_mode}
 	"""
 }
@@ -179,15 +185,15 @@ process GENOTYPE_MAFA {
 	script:
 	"""
 	genotype.py \
-	--project_name=${params.run_name} \
 	--out_dir=. \
 	--bam_dir=. \
+	--project_name=${params.run_name} \
 	--config_dir=${params.config_dir} \
-	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--bait_fasta=${params.bait_fasta} \
-	--edge_distance_threshold=${params.edge_distance_threshold} \
+	--ipd_ref_matrix_dir='${params.config_dir}/${params.animal}_ref_matrix' \
 	--unpaired_edge_threshold=${params.unpaired_edge_threshold} \
 	--depth_threshold=${params.depth_threshold} \
+	--edge_distance_threshold=${params.edge_distance_threshold} \
 	--low_ram_mode=${params.genotype_in_low_ram_mode}
 	"""
 }
@@ -208,13 +214,14 @@ process CREATE_PIVOT_TABLE {
 	script:
 	"""
 	create_pivot_table.py \
-	--project_name=${params.run_name} \
 	--out_dir=./ \
+	--project_name=${params.run_name} \
 	--config_dir=${params.config_dir} \
-	--bait_fasta=${params.bait_fasta}
 	--animal_lookup_path=${params.run_animal_lookup} \
+	--bait_fasta=${params.bait_fasta} \
 	--haplotype_lookup=${params.haplotype_lookup} \
-	--diag_to_ipd_json=${params.ipd_avrl_dict}
+	--diag_to_ipd_json=${params.ipd_avrl_dict} \
+	--exon_to_ipd_json=
 	"""
 }
 
